@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrustVault - Secure Document Sharing & Tamper-Evident Audit Trail</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="top-bar">
+    <div class="logo-area">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+      </div>
+      <div class="logo-text">
+        <h1>TrustVault</h1>
+        <p>Enterprise Document Vault & Real Audit Ledger</p>
+      </div>
+    </div>
+
+    <!-- Status Pill -->
+    <div class="top-bar-actions">
+      <div id="tamper-status-pill" class="status-pill verified">
+        <span class="status-dot"></span>
+        <span id="tamper-status-text">LEDGER: 100% VERIFIED</span>
+      </div>
+
+      <!-- Quick Role Switcher for Evaluators -->
+      <div class="role-switcher">
+        <span>DEMO ROLES:</span>
+        <button class="btn-chip" onclick="quickLogin('admin', 'Admin@123')">Admin</button>
+        <button class="btn-chip active" onclick="quickLogin('owner', 'Owner@123')">Owner (Alice)</button>
+        <button class="btn-chip" onclick="quickLogin('viewer', 'Viewer@123')">Viewer (Bob)</button>
+      </div>
+
+      <!-- User Profile Pill -->
+      <div id="user-profile-pill" class="user-pill" style="display: none;">
+        <div class="user-avatar" id="user-avatar">A</div>
+        <div class="user-info">
+          <span class="user-name" id="user-display-name">Alice Jenkins</span>
+          <span class="user-role-badge" id="user-display-role">ROLE_OWNER</span>
+        </div>
+      </div>
+
+      <button id="auth-btn" class="btn btn-secondary btn-sm" onclick="toggleAuthModal()">Login</button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="app-container">
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-tab="vault" onclick="switchTab('vault')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        Vault Explorer
+      </button>
+
+      <button class="tab-btn" data-tab="requests" onclick="switchTab('requests')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+        Access Requests
+        <span id="requests-badge" class="badge badge-info" style="display:none; margin-left: 4px;">0</span>
+      </button>
+
+      <button class="tab-btn" data-tab="audit" id="tab-audit-btn" onclick="switchTab('audit')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Audit Trail Ledger
+      </button>
+
+      <button class="tab-btn" data-tab="soc" id="tab-soc-btn" onclick="switchTab('soc')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        Security & Tamper Center
+      </button>
+    </nav>
+
+    <!-- SECTION: VAULT EXPLORER -->
+    <section id="section-vault" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Confidential Documents</h2>
+          <p>End-to-end access-controlled document vault with strict server-side authorization</p>
+        </div>
+        <button id="upload-doc-btn" class="btn btn-primary" onclick="openUploadModal()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Upload Document
+        </button>
+      </div>
+
+      <!-- Filters & Search Bar -->
+      <div class="filter-bar">
+        <div class="search-input-wrapper">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input type="text" id="doc-search-input" placeholder="Search by document title, keywords or description..." oninput="handleSearch()">
+        </div>
+
+        <select id="doc-category-filter" class="filter-select" onchange="handleSearch()">
+          <option value="">All Categories</option>
+          <option value="Legal & Board">Legal & Board</option>
+          <option value="Finance">Finance</option>
+          <option value="Engineering">Engineering</option>
+          <option value="HR">HR</option>
+          <option value="Confidential">Confidential</option>
+        </select>
+
+        <select id="doc-view-mode" class="filter-select" onchange="changeDocViewMode(this.value)">
+          <option value="my">My Documents</option>
+          <option value="shared">Shared with Me</option>
+          <option value="all">Search All Vault</option>
+        </select>
+      </div>
+
+      <!-- Document Grid -->
+      <div id="documents-grid" class="doc-grid">
+        <!-- Rendered dynamically via JS -->
+      </div>
+    </section>
+
+    <!-- SECTION: ACCESS REQUESTS -->
+    <section id="section-requests" class="tab-content" style="display: none;">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Access Request & Approval Inbox</h2>
+          <p>Review incoming access requests or track the status of permissions you requested</p>
+        </div>
+      </div>
+
+      <div class="glass-panel" style="padding: 1.5rem;">
+        <h3 style="font-size: 1.05rem; margin-bottom: 1rem;">Pending Approvals (For Document Owners)</h3>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Document</th>
+                <th>Requester</th>
+                <th>Permission</th>
+                <th>Reason</th>
+                <th>Requested At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="pending-requests-tbody">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="glass-panel" style="padding: 1.5rem; margin-top: 1.5rem;">
+        <h3 style="font-size: 1.05rem; margin-bottom: 1rem;">My Submitted Requests</h3>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Document</th>
+                <th>Permission</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th>Reviewed By</th>
+                <th>Submitted Date</th>
+              </tr>
+            </thead>
+            <tbody id="my-requests-tbody">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: AUDIT TRAIL LEDGER -->
+    <section id="section-audit" class="tab-content" style="display: none;">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Immutable Audit Ledger</h2>
+          <p>Every read, download, edit, delete, and permission change cryptographically linked via SHA-256</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="loadAuditLogs()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Refresh Ledger
+        </button>
+      </div>
+
+      <div class="glass-panel" style="padding: 1.25rem;">
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Timestamp</th>
+                <th>Action</th>
+                <th>User</th>
+                <th>Resource</th>
+                <th>IP</th>
+                <th>Status</th>
+                <th>Cryptographic Hashes (Prev → Current)</th>
+              </tr>
+            </thead>
+            <tbody id="audit-logs-tbody">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: SECURITY OPERATIONS CENTER (SOC) & TAMPER TOOL -->
+    <section id="section-soc" class="tab-content" style="display: none;">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Security Operations Center & Tamper Proofing</h2>
+          <p>Real-time threat detection, anomaly monitoring, and mathematical blockchain-style ledger verification</p>
+        </div>
+        <button class="btn btn-primary" onclick="runTamperVerification()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Run Tamper Verification
+        </button>
+      </div>
+
+      <!-- Security KPI Metrics Cards -->
+      <div class="metrics-grid">
+        <div class="glass-panel metric-card">
+          <div class="metric-icon cyan">
+            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          </div>
+          <div class="metric-info">
+            <h4>Vault Documents</h4>
+            <div id="stat-docs" class="metric-value">0</div>
+          </div>
+        </div>
+
+        <div class="glass-panel metric-card">
+          <div class="metric-icon green">
+            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <div class="metric-info">
+            <h4>Total Audit Blocks</h4>
+            <div id="stat-audit-count" class="metric-value">0</div>
+          </div>
+        </div>
+
+        <div class="glass-panel metric-card">
+          <div class="metric-icon red">
+            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          </div>
+          <div class="metric-info">
+            <h4>24h Blocked Probes / IDOR</h4>
+            <div id="stat-unauthorized" class="metric-value">0</div>
+          </div>
+        </div>
+
+        <div class="glass-panel metric-card">
+          <div class="metric-icon amber">
+            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+          </div>
+          <div class="metric-info">
+            <h4>Active Access Grants</h4>
+            <div id="stat-perms" class="metric-value">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tamper Proofing Interactive Demo Tool -->
+      <div class="glass-panel tamper-tool-card">
+        <div class="tamper-header">
+          <div>
+            <h3>
+              <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              Cryptographic Hash Chain Integrity Proof
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
+              Every audit record is hashed with the previous record's SHA-256 hash. If an internal attacker or rogue DBA alters or removes a single row, the chain mathematical link fails immediately.
+            </p>
+          </div>
+          <div id="verification-badge" class="status-pill verified">
+            <span>CHAIN VALID</span>
+          </div>
+        </div>
+
+        <div id="verification-detail-box" style="margin: 1rem 0; padding: 1rem; border-radius: 8px; background: rgba(0,0,0,0.3); font-family: var(--font-mono); font-size: 0.8rem; color: #a7f3d0;">
+          All audit log blocks verified. Zero hash discrepancies found.
+        </div>
+
+        <div class="hash-chain-visual" id="hash-chain-visual">
+          <!-- Visual blocks rendered via JS -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODALS -->
+
+  <!-- Upload Document Modal -->
+  <div id="modal-upload" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Upload Confidential Document</h3>
+        <button class="modal-close" onclick="closeModal('modal-upload')">&times;</button>
+      </div>
+      <form id="upload-form" onsubmit="submitUpload(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Document Title *</label>
+            <input type="text" id="upload-title" class="form-control" placeholder="e.g. Q4 Merger & Acquisition Agreement" required>
+          </div>
+          <div class="form-group">
+            <label>Category *</label>
+            <select id="upload-category" class="form-control" required>
+              <option value="Legal & Board">Legal & Board</option>
+              <option value="Finance">Finance</option>
+              <option value="Engineering">Engineering</option>
+              <option value="HR">HR</option>
+              <option value="Confidential">Confidential</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="upload-desc" class="form-control" rows="3" placeholder="Provide confidential context, classifications or retention notes..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>Select Document File (PDF, DOCX, TXT, CSV, PNG, JPG - max 15MB) *</label>
+            <input type="file" id="upload-file" class="form-control" required>
+            <span style="font-size: 0.72rem; color: var(--text-dim); margin-top: 4px; display: block;">
+              Protected by Apache Tika magic-byte binary header inspection and path-traversal sanitization.
+            </span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-upload')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Encrypt & Upload</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Manage Permissions Modal -->
+  <div id="modal-permissions" class="modal-overlay">
+    <div class="modal-box" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3>Manage Document Permissions</h3>
+        <button class="modal-close" onclick="closeModal('modal-permissions')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <h4 id="perm-doc-title" style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--primary);">Document Title</h4>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+          Grant individual access to viewers or revoke access instantly. Revocations take effect immediately.
+        </p>
+
+        <!-- Grant Permission Form -->
+        <div class="glass-panel" style="padding: 1rem; margin-bottom: 1.25rem; background: rgba(0,0,0,0.2);">
+          <h5 style="font-size: 0.82rem; margin-bottom: 0.75rem; text-transform: uppercase; color: var(--text-muted);">Grant New Permission</h5>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 0.5rem; align-items: end;">
+            <div>
+              <label style="font-size: 0.72rem; color: var(--text-dim);">User</label>
+              <select id="grant-username-select" class="form-control" style="font-size: 0.8rem;">
+                <option value="viewer">viewer (Bob Smith)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 0.72rem; color: var(--text-dim);">Permission</label>
+              <select id="grant-type-select" class="form-control" style="font-size: 0.8rem;">
+                <option value="READ">READ (View & Download)</option>
+                <option value="EDIT">EDIT (Update & New Version)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 0.72rem; color: var(--text-dim);">Expiry (Optional)</label>
+              <input type="datetime-local" id="grant-expiry-input" class="form-control" style="font-size: 0.8rem;">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="submitGrantPermission()">Grant</button>
+          </div>
+        </div>
+
+        <!-- Current Active Permissions Table -->
+        <h5 style="font-size: 0.82rem; margin-bottom: 0.5rem; text-transform: uppercase; color: var(--text-muted);">Current Access Grants</h5>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Access Type</th>
+                <th>Expires</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="permissions-tbody">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-permissions')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Request Access Modal -->
+  <div id="modal-request-access" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Request Document Access</h3>
+        <button class="modal-close" onclick="closeModal('modal-request-access')">&times;</button>
+      </div>
+      <form id="request-access-form" onsubmit="submitRequestAccess(event)">
+        <div class="modal-body">
+          <input type="hidden" id="req-doc-id">
+          <p id="req-doc-title" style="font-weight: 600; margin-bottom: 1rem; color: var(--primary);">Document Title</p>
+
+          <div class="form-group">
+            <label>Requested Access Level *</label>
+            <select id="req-perm-type" class="form-control" required>
+              <option value="READ">READ (View and Watermarked Download)</option>
+              <option value="EDIT">EDIT (Make Updates and Upload Versions)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Business Justification / Reason *</label>
+            <textarea id="req-reason" class="form-control" rows="3" placeholder="Explain why you require access to this document..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-request-access')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Submit Request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Version History Modal -->
+  <div id="modal-versions" class="modal-overlay">
+    <div class="modal-box" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3>Document Version History</h3>
+        <button class="modal-close" onclick="closeModal('modal-versions')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="version-doc-id">
+        <h4 id="version-doc-title" style="font-size: 0.95rem; margin-bottom: 1rem; color: var(--primary);">Document Title</h4>
+
+        <!-- Upload New Version Form (for owners or EDIT permission) -->
+        <div id="upload-version-container" class="glass-panel" style="padding: 1rem; margin-bottom: 1.25rem; background: rgba(0,0,0,0.2);">
+          <h5 style="font-size: 0.82rem; margin-bottom: 0.75rem; text-transform: uppercase; color: var(--text-muted);">Upload New Version</h5>
+          <form id="new-version-form" onsubmit="submitNewVersion(event)">
+            <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.5rem; align-items: end;">
+              <div>
+                <label style="font-size: 0.72rem; color: var(--text-dim);">New File *</label>
+                <input type="file" id="version-file-input" class="form-control" style="font-size: 0.8rem;" required>
+              </div>
+              <div>
+                <label style="font-size: 0.72rem; color: var(--text-dim);">Change Summary</label>
+                <input type="text" id="version-summary-input" class="form-control" placeholder="e.g. Updated Section 4 terms" style="font-size: 0.8rem;">
+              </div>
+              <button type="submit" class="btn btn-primary btn-sm">Upload v+</button>
+            </div>
+          </form>
+        </div>
+
+        <h5 style="font-size: 0.82rem; margin-bottom: 0.5rem; text-transform: uppercase; color: var(--text-muted);">Historical Versions</h5>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Version</th>
+                <th>Uploaded By</th>
+                <th>Filename</th>
+                <th>SHA-256 Checksum</th>
+                <th>Summary</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody id="versions-tbody">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-versions')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div id="modal-login" class="modal-overlay">
+    <div class="modal-box" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3>Sign In to TrustVault</h3>
+        <button class="modal-close" onclick="closeModal('modal-login')">&times;</button>
+      </div>
+      <form id="login-form" onsubmit="submitLogin(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="login-username" class="form-control" placeholder="admin, owner, or viewer" required>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
+          </div>
+          <div style="margin-top: 1rem; font-size: 0.75rem; color: var(--text-muted);">
+            Pre-seeded accounts:<br>
+            • Admin: <code>admin</code> / <code>Admin@123</code><br>
+            • Owner: <code>owner</code> / <code>Owner@123</code><br>
+            • Viewer: <code>viewer</code> / <code>Viewer@123</code>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-login')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Authenticate</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
