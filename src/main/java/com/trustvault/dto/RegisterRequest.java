@@ -22,7 +22,6 @@ public class RegisterRequest {
     @NotBlank
     private String fullName;
 
-    @NotNull
     private RoleName role;
 
     public RegisterRequest() {}

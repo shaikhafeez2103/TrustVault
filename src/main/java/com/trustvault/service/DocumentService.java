@@ -62,8 +62,22 @@ public class DocumentService {
     public DocumentResponse uploadDocument(String title, String description, String category,
                                           MultipartFile file, Authentication authentication,
                                           HttpServletRequest request) {
-        String clientIp = request != null ? request.getRemoteAddr() : "UNKNOWN";
+                String clientIp = request != null ? request.getRemoteAddr() : "UNKNOWN";
         User user = getCurrentUser(authentication);
+
+        // Restrict upload to ADMIN or OWNER roles
+        if (user.getRole() != RoleName.ROLE_ADMIN && user.getRole() != RoleName.ROLE_OWNER) {
+            auditService.logSecurityEvent(
+                    user.getUsername(),
+                    AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT,
+                    "DOCUMENT",
+                    "UPLOAD_DENIED",
+                    "User role " + user.getRole() + " is not permitted to upload documents.",
+                    clientIp,
+                    false
+            );
+            throw new UnauthorizedAccessException("Only ADMIN or OWNER can upload documents.");
+        }
 
         String checksum = fileStorageService.calculateChecksum(file);
         String storageFilename = fileStorageService.storeFile(file);

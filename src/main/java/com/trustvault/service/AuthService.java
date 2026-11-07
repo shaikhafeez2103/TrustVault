@@ -105,7 +105,8 @@ public class AuthService {
                 registerRequest.getEmail(),
                 passwordEncoder.encode(registerRequest.getPassword()),
                 registerRequest.getFullName(),
-                registerRequest.getRole() != null ? registerRequest.getRole() : RoleName.ROLE_VIEWER
+                // Force ROLE_OWNER for all public registrations; ignore client-supplied role
+                RoleName.ROLE_OWNER
         );
 
         User savedUser = userRepository.save(user);

@@ -29,7 +29,8 @@ public class FileStorageService {
             "pdf", "docx", "doc", "txt", "csv", "xlsx", "xls", "png", "jpg", "jpeg", "json"
     );
 
-    private static final long MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
+    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
 
     public FileStorageService(@Value("${app.upload.dir:uploads}") String uploadDir) {
         this.storageLocation = Paths.get(uploadDir).toAbsolutePath().normalize();
@@ -46,7 +47,7 @@ public class FileStorageService {
         }
 
         if (file.getSize() > MAX_FILE_SIZE) {
-            throw new FileStorageException("File size exceeds maximum limit of 15MB.");
+            throw new FileStorageException("File size exceeds maximum limit of 10MB.");
         }
 
         String rawFilename = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unnamed");
@@ -64,6 +65,10 @@ public class FileStorageService {
 
         // Magic Byte & MIME Type verification via Apache Tika
         try (InputStream is = file.getInputStream()) {
+            byte[] headerBytes = file.getBytes();
+            if (headerBytes.length >= 2 && headerBytes[0] == 'M' && headerBytes[1] == 'Z') {
+                throw new FileStorageException("Potential malicious executable (MZ header) detected.");
+            }
             String detectedType = tika.detect(is, rawFilename);
             if (isExecutableOrScript(detectedType, extension)) {
                 throw new FileStorageException("Potential malicious file detected. MIME type: " + detectedType);
@@ -128,7 +133,8 @@ public class FileStorageService {
 
     private boolean isExecutableOrScript(String mimeType, String extension) {
         List<String> dangerousMimes = Arrays.asList(
-                "application/x-dosexec", "application/x-executable", "application/x-sh",
+                "application/x-dosexec", "application/x-msdownload", "application/x-executable",
+                "application/x-elf", "application/x-sharedlib", "application/x-sh",
                 "application/javascript", "text/javascript", "application/x-php",
                 "application/x-httpd-php", "text/x-python", "text/x-perl"
         );

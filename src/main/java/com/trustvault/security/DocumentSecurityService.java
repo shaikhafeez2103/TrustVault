@@ -30,6 +30,12 @@ public class DocumentSecurityService {
     private UserRepository userRepository;
 
     public boolean canRead(Authentication authentication, Long documentId) {
+        // Admins should have full read access across all documents
+        if (authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            return true;
+        }
+
         if (authentication == null || !authentication.isAuthenticated()) {
             return false;
         }
@@ -66,6 +72,12 @@ public class DocumentSecurityService {
     }
 
     public boolean canEdit(Authentication authentication, Long documentId) {
+        // Admins have full edit access across all documents
+        if (authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            return true;
+        }
+
         if (authentication == null || !authentication.isAuthenticated()) {
             return false;
         }
