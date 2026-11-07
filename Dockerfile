@@ -11,4 +11,4 @@ WORKDIR /app
 COPY --from=build /app/target/trustvault-1.0.0.jar app.jar
 RUN mkdir -p uploads
 EXPOSE 8082
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:+UseSerialGC", "-Xss512k", "-Xmx256m", "-XX:MaxMetaspaceSize=128m", "-jar", "app.jar"]
