@@ -1,0 +1,23 @@
+/* Theme definitions */
+:root[data-theme="light"] {
+  --bg-color: #f5f7fa;
+  --text-color: #212529;
+  --primary: #0d6efd; /* bootstrap primary */
+  --card-bg: #ffffff;
+  --card-shadow: rgba(0,0,0,.1);
+}
+:root[data-theme="dark"] {
+  --bg-color: #212529;
+  --text-color: #f8f9fa;
+  --primary: #0d6efd;
+  --card-bg: #2c2f33;
+  --card-shadow: rgba(0,0,0,.3);
+}
+body {
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+.card {
+  background: var(--card-bg);
+  box-shadow: 0 2px 4px var(--card-shadow);
+}
