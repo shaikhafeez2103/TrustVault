@@ -1,6 +1,6 @@
 # TrustVault – REST API Documentation
 
-**Base URL:** `http://localhost:8080/api`  
+**Base URL:** `http://localhost:8082/api`  
 **Authentication:** HTTP Authorization Header `Bearer <JWT_TOKEN>`
 
 ---
@@ -14,7 +14,7 @@
 ```json
 {
   "username": "owner",
-  "password": "Owner@123"
+  "password": "<YOUR_PASSWORD>"
 }
 ```
 * **Success Response (200 OK):**
@@ -41,15 +41,14 @@
 
 ### 1.2 User Registration
 * **Endpoint:** `POST /api/auth/register`
-* **Access:** Public
+* **Access:** Public (assigns `ROLE_OWNER` by default; ignores client-supplied elevated roles)
 * **Request Body:**
 ```json
 {
   "username": "newanalyst",
   "email": "analyst@trustvault.io",
-  "password": "Password@123",
-  "fullName": "Security Analyst",
-  "role": "ROLE_VIEWER"
+  "password": "<STRONG_PASSWORD>",
+  "fullName": "Security Analyst"
 }
 ```
 
@@ -69,7 +68,7 @@
   - `title` (string, required)
   - `category` (string, e.g. "Legal & Board", "Finance", "Engineering")
   - `description` (string, optional)
-  - `file` (binary, max 15MB, inspected by Apache Tika)
+  - `file` (binary, max 10MB, inspected by Apache Tika)
 
 ### 2.2 Search Documents
 * **Endpoint:** `GET /api/documents/search`

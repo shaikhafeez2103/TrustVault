@@ -37,6 +37,12 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-### Local uploads & logs ###
+### Local uploads, environment secrets, databases & logs ###
 uploads/
 *.log
+.env
+.env.*
+*.db
+*.mv.db
+*.trace.db
+*.sqlite

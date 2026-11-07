@@ -4,7 +4,7 @@
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3.4-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![Spring Security](https://img.shields.io/badge/Spring_Security-6.x-6DB33F?style=for-the-badge&logo=spring-security&logoColor=white)](https://spring.io/projects/spring-security)
 [![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com/)
-[![Tests](https://img.shields.io/badge/Security_Tests-8%2F8_Passed-10B981?style=for-the-badge&logo=junit5&logoColor=white)](https://junit.org/)
+[![Tests](https://img.shields.io/badge/Security_Tests-15%2F15_Passed-10B981?style=for-the-badge&logo=junit5&logoColor=white)](https://junit.org/)
 
 > **Snovasys Fresher Hiring Challenge 2026 – RISE (Round 2 Project Challenge)**  
 > **Company:** Snovasys  
@@ -13,17 +13,17 @@
 
 ---
 
-## 1. Quick Start & Evaluator Credentials
+## 1. Quick Start & Role Overview
 
-The application comes pre-configured with three role-based accounts ready for immediate testing:
+The application seeds three role-based accounts on startup for evaluation:
 
-| Role | Username | Password | Full Name | Primary Capabilities |
-|---|---|---|---|---|
-| **Admin** | `admin` | `Admin@123` | Security Administrator | Review immutable audit ledger, monitor 24h threat metrics, run cryptographic tamper verification. |
-| **Document Owner** | `owner` | `Owner@123` | Alice Jenkins (Chief Legal Officer) | Upload confidential files, manage version history, grant/revoke permissions, review access requests. |
-| **Viewer** | `viewer` | `Viewer@123` | Bob Smith (Compliance Auditor) | Browse permitted files, download with forensic watermarking, submit access requests for locked files. |
+| Role | Username | Full Name | Primary Capabilities |
+|---|---|---|---|
+| **Admin** | `admin` | Security Administrator | Review immutable audit ledger, monitor 24h threat metrics, run cryptographic tamper verification. |
+| **Document Owner** | `owner` | Alice Jenkins (Chief Legal Officer) | Upload confidential files, manage version history, grant/revoke permissions, review access requests. |
+| **Viewer** | `viewer` | Bob Smith (Compliance Auditor) | Browse permitted files, download with forensic watermarking, submit access requests for locked files. |
 
-> **Evaluator Tip:** The web application features **1-Click Demo Role Switcher buttons** in the top navigation bar, allowing you to instantly switch between Admin, Owner, and Viewer roles without retyping credentials!
+> **Evaluator Tip:** The web application features **1-Click Demo Role Switcher buttons** in the top banner (`login.html` and `index.html`), allowing you to instantly switch between Admin, Owner, and Viewer roles during local evaluation.
 
 ---
 
@@ -93,30 +93,30 @@ trustvault/
 TrustVault includes an in-memory profile allowing immediate execution without setting up MySQL:
 ```bash
 # 1. Clone repository
-git clone https://github.com/your-username/trustvault.git
-cd trustvault
+git clone https://github.com/shaikhafeez2103/TrustVault.git
+cd TrustVault
 
 # 2. Run with H2 in-memory profile
 run_maven.bat spring-boot:run -Dspring-boot.run.profiles=h2
 ```
-Open your browser at `http://localhost:8080`.
+Open your browser at `http://localhost:8082/login.html` (or `http://localhost:8082/index.html`).
 
 ### Option B: Production MySQL Setup
 1. Open MySQL CLI and run the schema setup:
    ```bash
    mysql -u root -p < schema.sql
    ```
-2. Configure your MySQL credentials in `src/main/resources/application.properties` (or pass via environment variables):
+2. Configure your MySQL credentials via environment variables (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `APP_JWT_SECRET`):
    ```properties
-   spring.datasource.url=jdbc:mysql://localhost:3306/trustvault_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
-   spring.datasource.username=root
-   spring.datasource.password=your_password
+   spring.datasource.url=${SPRING_DATASOURCE_URL}
+   spring.datasource.username=${SPRING_DATASOURCE_USERNAME}
+   spring.datasource.password=${SPRING_DATASOURCE_PASSWORD}
    ```
 3. Launch the application:
    ```bash
    run_maven.bat spring-boot:run
    ```
-4. Access the web dashboard at `http://localhost:8080`.
+4. Access the web dashboard at `http://localhost:8082`.
 
 ---
 
@@ -168,9 +168,9 @@ docker run -p 8080:8080 trustvault:latest
 
 ## 7. Submission Documentation Index
 
-* [`THREATS.md`](file:///C:/Users/asima/.gemini/antigravity/scratch/trustvault/THREATS.md): Comprehensive STRIDE threat modeling & technical mitigations.
-* [`PROMPTS.md`](file:///C:/Users/asima/.gemini/antigravity/scratch/trustvault/PROMPTS.md): Five dated AI usage logs with prompt engineering, critique, and refinements.
-* [`PROJECT_WRITEUP.md`](file:///C:/Users/asima/.gemini/antigravity/scratch/trustvault/PROJECT_WRITEUP.md): Architectural report, security implementation, and unfinished features roadmap.
-* [`DEMO_GUIDE.md`](file:///C:/Users/asima/.gemini/antigravity/scratch/trustvault/DEMO_GUIDE.md): 5-minute video demonstration script and presentation plan.
-* [`API_DOCUMENTATION.md`](file:///C:/Users/asima/.gemini/antigravity/scratch/trustvault/API_DOCUMENTATION.md): Complete REST endpoint reference with request/response schemas.
-* [`schema.sql`](file:///C:/Users/asima/.gemini/antigravity/scratch/trustvault/schema.sql) and [`data.sql`](file:///C:/Users/asima/.gemini/antigravity/scratch/trustvault/data.sql): Database DDL schema and seed records.
+* [`THREATS.md`](THREATS.md): Comprehensive STRIDE threat modeling & technical mitigations.
+* [`PROMPTS.md`](PROMPTS.md): Five dated AI usage logs with prompt engineering, critique, and refinements.
+* [`PROJECT_WRITEUP.md`](PROJECT_WRITEUP.md): Architectural report, security implementation, and unfinished features roadmap.
+* [`DEMO_GUIDE.md`](DEMO_GUIDE.md): 5-minute video demonstration script and presentation plan.
+* [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md): Complete REST endpoint reference with request/response schemas.
+* [`schema.sql`](schema.sql) and [`data.sql`](data.sql): Database DDL schema and seed records.

@@ -84,7 +84,7 @@ AI was used as an interactive architectural sounding board and code generation a
 4. **Library Modernization:** Updated deprecated PDFBox 2.x APIs to PDFBox 3.x with dynamic page geometry and semi-transparent visual layering.
 5. **Real-world Security Testing:** Refactored synthetic `@WithMockUser` tests into authentic JWT token-bearing requests executing across real filters.
 
-Full prompts, evaluation critiques, and refinements are documented in [`PROMPTS.md`](file:///C:/Users/asima/.gemini/antigravity/scratch/trustvault/PROMPTS.md).
+Full prompts, evaluation critiques, and refinements are documented in [`PROMPTS.md`](PROMPTS.md).
 
 ---
 

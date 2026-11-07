@@ -4,11 +4,7 @@
 
 USE trustvault_db;
 
--- 1. Pre-seeded Users
--- Passwords BCrypt hashed:
--- admin   / Admin@123  -> $2a$10$wE9t0R..
--- owner   / Owner@123  -> $2a$10$wE9t0R..
--- viewer  / Viewer@123 -> $2a$10$wE9t0R..
+-- 1. Pre-seeded Users (BCrypt hashed credentials)
 
 INSERT IGNORE INTO users (id, username, email, password, full_name, role, enabled, created_at)
 VALUES 
