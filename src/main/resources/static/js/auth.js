@@ -47,16 +47,18 @@ async function handleSignIn(e) {
     }
 
     const data = await response.json();
+    const displayFullName = data.username === 'admin' ? 'Demo Admin' : data.fullName;
     localStorage.setItem('trustvault_token', data.token);
     localStorage.setItem('trustvault_user', JSON.stringify({
       id: data.id,
       username: data.username,
-      fullName: data.fullName,
+      fullName: displayFullName,
       email: data.email,
-      role: data.role
+      role: data.role,
+      initials: data.username === 'admin' ? 'DA' : undefined
     }));
 
-    showToast(`Welcome back, ${data.fullName}! Redirecting to dashboard...`, 'success');
+    showToast(`Welcome back, ${displayFullName}! Redirecting to dashboard...`, 'success');
     setTimeout(() => {
       window.location.href = 'index.html';
     }, 600);

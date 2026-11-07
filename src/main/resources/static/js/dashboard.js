@@ -1,6 +1,15 @@
 // State & Credentials
 let currentUser = JSON.parse(localStorage.getItem('trustvault_user') || 'null');
 let token = localStorage.getItem('trustvault_token') || null;
+
+// Sanitize any stale localStorage user profile for the demo admin account
+if (currentUser && (currentUser.username === 'admin' || /abdul|haffiz|administrator/i.test(currentUser.fullName || ''))) {
+  currentUser.fullName = 'Demo Admin';
+  currentUser.initials = 'DA';
+  currentUser.role = 'Admin';
+  localStorage.setItem('trustvault_user', JSON.stringify(currentUser));
+}
+
 // Auto‑login demo admin if no token present (ensures upload works out‑of‑the‑box)
 if (!token) {
   // fire the demo login for admin – it will set token & currentUser in localStorage
@@ -99,6 +108,10 @@ async function switchDemoUser(userKey) {
 
 function updateUserInterface() {
   if (!currentUser) currentUser = DEMO_USERS.admin;
+  if (currentUser.username === 'admin') {
+    currentUser.fullName = 'Demo Admin';
+    currentUser.initials = 'DA';
+  }
 
   document.getElementById('header-avatar').innerText = currentUser.initials || currentUser.fullName?.charAt(0) || 'U';
   document.getElementById('header-username').innerText = currentUser.fullName || currentUser.username;

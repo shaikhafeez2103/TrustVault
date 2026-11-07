@@ -165,6 +165,13 @@ public class TrustVaultApplication {
                         "127.0.0.1",
                         true
                 );
+            } else {
+                userRepository.findByUsername("admin").ifPresent(existingAdmin -> {
+                    if (!"Demo Admin".equals(existingAdmin.getFullName())) {
+                        existingAdmin.setFullName("Demo Admin");
+                        userRepository.save(existingAdmin);
+                    }
+                });
             }
         };
     }
