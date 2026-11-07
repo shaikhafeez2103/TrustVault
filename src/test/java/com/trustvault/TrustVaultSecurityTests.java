@@ -105,14 +105,14 @@ public class TrustVaultSecurityTests {
         auditService.logSecurityEvent("SYSTEM", AuditAction.TAMPER_VERIFICATION_CHECK, "GENESIS", "0", "Genesis", "127.0.0.1", true);
 
         // 2. Create Users
-        User admin = userRepository.save(new User("admin", "admin@trustvault.io", passwordEncoder.encode("Admin@123"), "Admin", RoleName.ROLE_ADMIN));
+        User admin = userRepository.save(new User("admin", "admin@trustvault.io", passwordEncoder.encode("Admin@2026Test"), "Demo Admin", RoleName.ROLE_ADMIN));
         User owner = userRepository.save(new User("owner", "owner@trustvault.io", passwordEncoder.encode("Owner@123"), "Owner", RoleName.ROLE_OWNER));
         User viewer = userRepository.save(new User("viewer", "viewer@trustvault.io", passwordEncoder.encode("Viewer@123"), "Viewer", RoleName.ROLE_VIEWER));
 
         // 3. Obtain JWT Tokens
         ownerToken = obtainToken("owner", "Owner@123");
         viewerToken = obtainToken("viewer", "Viewer@123");
-        adminToken = obtainToken("admin", "Admin@123");
+        adminToken = obtainToken("admin", "Admin@2026Test");
 
         // 4. Create Private Document owned by Owner
         confidentialDoc = new Document(
@@ -666,5 +666,37 @@ public class TrustVaultSecurityTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("code", exchangeCode))))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("SECURITY-19: Demo Admin login with Admin@2026Test succeeds, stores BCrypt hash, and confirms ROLE_ADMIN")
+    public void testAdminLoginWithResetPasswordAndVerifyRole() throws Exception {
+        User adminUser = userRepository.findByUsername("admin").orElseThrow();
+        assertNotEquals("Admin@2026Test", adminUser.getPassword(), "Admin password must never be stored in plaintext");
+        assertTrue(adminUser.getPassword().startsWith("$2a$"), "Admin password must be BCrypt hashed");
+        assertTrue(passwordEncoder.matches("Admin@2026Test", adminUser.getPassword()));
+        assertEquals(RoleName.ROLE_ADMIN, adminUser.getRole());
+
+        // Login with username 'admin' and password 'Admin@2026Test'
+        LoginRequest loginReq = new LoginRequest("admin", "Admin@2026Test");
+        MvcResult loginRes = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginReq)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Map<?, ?> loginBody = objectMapper.readValue(loginRes.getResponse().getContentAsString(), Map.class);
+        assertEquals("admin", loginBody.get("username"));
+        assertEquals("ROLE_ADMIN", loginBody.get("role"));
+        String token = (String) loginBody.get("token");
+        assertNotNull(token);
+
+        // Verify /api/auth/me confirms ROLE_ADMIN
+        MvcResult meRes = mockMvc.perform(get("/api/auth/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        Map<?, ?> meBody = objectMapper.readValue(meRes.getResponse().getContentAsString(), Map.class);
+        assertEquals("ROLE_ADMIN", meBody.get("role"));
     }
 }

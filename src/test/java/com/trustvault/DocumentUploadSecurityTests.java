@@ -37,7 +37,7 @@ public class DocumentUploadSecurityTests {
 
     @BeforeAll
     void obtainTokens() throws Exception {
-        adminToken = loginAndGetToken("admin", "Admin@123");
+        adminToken = loginAndGetToken("admin", "Admin@2026Test");
         ownerToken = loginAndGetToken("owner", "Owner@123");
         viewerToken = loginAndGetToken("viewer", "Viewer@123");
     }

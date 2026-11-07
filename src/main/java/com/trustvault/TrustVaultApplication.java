@@ -50,7 +50,7 @@ public class TrustVaultApplication {
                 User admin = new User(
                         "admin",
                         "admin@trustvault.io",
-                        passwordEncoder.encode("Admin@123"),
+                        passwordEncoder.encode("Admin@2026Test"),
                         "Demo Admin",
                         RoleName.ROLE_ADMIN
                 );
@@ -176,8 +176,20 @@ public class TrustVaultApplication {
                 );
             } else {
                 userRepository.findByUsername("admin").ifPresent(existingAdmin -> {
+                    boolean updated = false;
                     if (!"Demo Admin".equals(existingAdmin.getFullName())) {
                         existingAdmin.setFullName("Demo Admin");
+                        updated = true;
+                    }
+                    if (existingAdmin.getRole() != RoleName.ROLE_ADMIN) {
+                        existingAdmin.setRole(RoleName.ROLE_ADMIN);
+                        updated = true;
+                    }
+                    if (!passwordEncoder.matches("Admin@2026Test", existingAdmin.getPassword())) {
+                        existingAdmin.setPassword(passwordEncoder.encode("Admin@2026Test"));
+                        updated = true;
+                    }
+                    if (updated) {
                         userRepository.save(existingAdmin);
                     }
                 });
