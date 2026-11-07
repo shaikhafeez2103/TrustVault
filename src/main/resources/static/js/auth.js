@@ -39,11 +39,8 @@ function validatePasswordRequirements(password) {
   return hasLen && hasUpper && hasNum;
 }
 
-function fillDemo(emailOrUsername, password) {
-  toggleAuthContainers('signin');
-  document.getElementById('signin-email').value = emailOrUsername;
-  document.getElementById('signin-password').value = password;
-  showToast(`Credentials populated for ${emailOrUsername}. Click 'Sign In' or hit Enter.`, 'success');
+function startGoogleSignIn() {
+  window.location.href = '/oauth2/authorization/google';
 }
 
 function persistAuthSession(token, userProfile, rememberMe) {
@@ -150,8 +147,7 @@ async function handleSignUp(e) {
         username,
         email,
         password,
-        fullName,
-        role: 'ROLE_OWNER'
+        fullName
       })
     });
 
@@ -231,5 +227,67 @@ function showToast(message, type = 'info') {
   setTimeout(() => {
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 300);
-  }, 4000);
+  }, 4500);
 }
+
+async function handleOAuthCallbackOnLoad() {
+  const emailInput = document.getElementById('signin-email');
+  const passInput = document.getElementById('signin-password');
+  if (emailInput) emailInput.value = '';
+  if (passInput) passInput.value = '';
+
+  const params = new URLSearchParams(window.location.search);
+  const oauthCode = params.get('oauth_code');
+  const oauthError = params.get('oauth_error');
+
+  if (!oauthCode && !oauthError) return;
+
+  // Clean URL query parameters immediately so codes/errors are not replayed on refresh
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  if (oauthError) {
+    const errorMessages = {
+      not_configured: 'Google Sign-In requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables on the server.',
+      cancelled: 'Google Sign-In was cancelled.',
+      invalid_state: 'Security state validation failed or expired. Please try signing in again.',
+      unverified_email: 'Your Google account email address must be verified to sign in to TrustVault.',
+      account_conflict: 'This email belongs to a protected account that cannot be automatically linked via Google OAuth. Please sign in with your password.',
+      account_disabled: 'This account has been disabled by an administrator.',
+      token_exchange_failed: 'Unable to verify Google identity token with Google OAuth servers. Please try again.'
+    };
+    showToast(errorMessages[oauthError] || 'Google authentication failed. Please sign in with your credentials.', 'error');
+    return;
+  }
+
+  if (oauthCode) {
+    try {
+      showToast('Completing Google OpenID Connect verification...', 'info');
+      const res = await fetch('/api/auth/oauth2/exchange', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: oauthCode })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'OAuth session exchange failed' }));
+        showToast(err.message || 'Google session exchange failed.', 'error');
+        return;
+      }
+      const data = await res.json();
+      persistAuthSession(data.token, {
+        id: data.id,
+        username: data.username,
+        fullName: data.fullName,
+        email: data.email,
+        role: data.role
+      }, true);
+      showToast(`Signed in with Google as ${data.fullName}! Redirecting...`, 'success');
+      setTimeout(() => {
+        window.location.href = 'index.html';
+      }, 450);
+    } catch (e) {
+      showToast('Network error completing Google authentication.', 'error');
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', handleOAuthCallbackOnLoad);

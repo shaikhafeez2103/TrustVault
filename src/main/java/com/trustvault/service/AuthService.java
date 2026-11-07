@@ -179,7 +179,7 @@ public class AuthService {
         if (authentication != null && authentication.isAuthenticated() && !"anonymousUser".equals(authentication.getName())) {
             auditService.logSecurityEvent(
                     authentication.getName(),
-                    AuditAction.AUTH_LOGIN_SUCCESS,
+                    AuditAction.AUTH_LOGOUT,
                     "USER_SESSION",
                     null,
                     "User logged out and terminated client session",
@@ -206,8 +206,8 @@ public class AuthService {
                 registerRequest.getEmail(),
                 passwordEncoder.encode(registerRequest.getPassword()),
                 registerRequest.getFullName(),
-                // Force ROLE_OWNER for all public registrations; ignore client-supplied role
-                RoleName.ROLE_OWNER
+                // Force least-privileged default role (ROLE_VIEWER) for all public registrations; ignore client-supplied role
+                RoleName.ROLE_VIEWER
         );
 
         User savedUser = userRepository.save(user);

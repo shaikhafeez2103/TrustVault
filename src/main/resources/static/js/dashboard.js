@@ -21,31 +21,6 @@ if (currentUser && (currentUser.username === 'admin' || /abdul|haffiz|administra
   }
 }
 
-// Demo evaluator credentials (authenticated via real backend POST /api/auth/login)
-const DEMO_USERS = {
-  admin: {
-    username: 'admin',
-    password: 'Admin@123',
-    fullName: 'Demo Admin',
-    role: 'Admin',
-    initials: 'DA'
-  },
-  owner: {
-    username: 'owner',
-    password: 'Owner@123',
-    fullName: 'Alice Jenkins',
-    role: 'Document Owner',
-    initials: 'AJ'
-  },
-  viewer: {
-    username: 'viewer',
-    password: 'Viewer@123',
-    fullName: 'Bob Smith',
-    role: 'Viewer',
-    initials: 'BS'
-  }
-};
-
 let currentView = 'dashboard';
 let documentsList = [];
 
@@ -107,44 +82,6 @@ async function handleLogout() {
   }
 }
 
-// Switch Demo User (Strictly authenticates against backend /api/auth/login)
-async function switchDemoUser(userKey) {
-  const target = DEMO_USERS[userKey] || DEMO_USERS.admin;
-  try {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: target.username, password: target.password })
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: 'Demo authentication failed' }));
-      showToast(err.message || 'Backend authentication failed.', 'error');
-      return false;
-    }
-    const data = await res.json();
-    token = data.token;
-    currentUser = {
-      id: data.id,
-      username: data.username,
-      fullName: data.username === 'admin' ? 'Demo Admin' : (data.fullName || target.fullName),
-      email: data.email,
-      role: data.role || target.role,
-      initials: target.initials
-    };
-    sessionStorage.removeItem('trustvault_logged_out');
-    localStorage.setItem('trustvault_token', token);
-    localStorage.setItem('trustvault_user', JSON.stringify(currentUser));
-  } catch (e) {
-    showToast('Network error connecting to authentication service.', 'error');
-    return false;
-  }
-
-  updateUserInterface();
-  showToast(`Switched active user to ${currentUser.fullName} (${currentUser.role})`, 'success');
-  navigateTo(currentView);
-  return true;
-}
-
 function isViewerRole() {
   if (!currentUser) return false;
   const r = String(currentUser.role || '').toUpperCase();
@@ -174,12 +111,9 @@ function updateUserInterface() {
   if (roleEl) roleEl.innerText = currentUser.role || 'User';
   if (welcomeEl) welcomeEl.innerText = currentUser.fullName || currentUser.username;
 
-  // Highlight active demo user chip in top evaluator strip
-  document.querySelectorAll('.strip-chip').forEach(c => c.classList.remove('active'));
-  const activeKey = currentUser.username === 'admin' ? 'admin' : currentUser.username === 'owner' ? 'owner' : currentUser.username === 'viewer' ? 'viewer' : null;
-  if (activeKey) {
-    const chip = document.getElementById(`chip-${activeKey}`);
-    if (chip) chip.classList.add('active');
+  const badgeEl = document.getElementById('active-session-badge');
+  if (badgeEl) {
+    badgeEl.innerText = `${currentUser.fullName || currentUser.username} (${currentUser.role || 'ROLE_VIEWER'})`;
   }
 
   // Role-based UI visibility for upload button
@@ -766,6 +700,70 @@ async function loadSettingsView() {
       </div>
     `;
   } catch (e) {}
+
+  const adminCard = document.getElementById('admin-user-management-card');
+  if (adminCard) {
+    if (isAdminRole()) {
+      adminCard.style.display = 'block';
+      await loadAdminUsersTable();
+    } else {
+      adminCard.style.display = 'none';
+    }
+  }
+}
+
+async function loadAdminUsersTable() {
+  const tbody = document.getElementById('admin-users-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1rem;color:#94a3b8;">Loading users...</td></tr>';
+  try {
+    const users = await api('/api/admin/users');
+    if (!users || users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1rem;">No users found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = users.map(u => {
+      const isPrimaryAdmin = u.username === 'admin';
+      return `
+        <tr>
+          <td><strong>#${u.id}</strong></td>
+          <td>${escapeHtml(u.username)}</td>
+          <td>${escapeHtml(u.fullName)}</td>
+          <td>${escapeHtml(u.email)}</td>
+          <td><span class="access-pill">${escapeHtml(u.oauthProvider || 'LOCAL')}</span></td>
+          <td><span class="access-pill shared">${escapeHtml(u.role)}</span></td>
+          <td style="text-align:right;">
+            ${isPrimaryAdmin ? '<span style="color:#94a3b8;font-size:0.8rem;">System Admin</span>' : `
+              <select id="role-select-${u.id}" class="form-input" style="display:inline-block;width:auto;padding:0.25rem 0.5rem;margin-right:0.35rem;">
+                <option value="ROLE_VIEWER" ${u.role === 'ROLE_VIEWER' ? 'selected' : ''}>ROLE_VIEWER</option>
+                <option value="ROLE_OWNER" ${u.role === 'ROLE_OWNER' ? 'selected' : ''}>ROLE_OWNER</option>
+                <option value="ROLE_ADMIN" ${u.role === 'ROLE_ADMIN' ? 'selected' : ''}>ROLE_ADMIN</option>
+              </select>
+              <button class="btn btn-sm btn-primary" onclick="updateUserRoleByAdmin(${u.id})">Update</button>
+            `}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#ef4444;">${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+async function updateUserRoleByAdmin(userId) {
+  const select = document.getElementById(`role-select-${userId}`);
+  if (!select) return;
+  const role = select.value;
+  try {
+    await api(`/api/admin/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role })
+    });
+    showToast(`User #${userId} role updated to ${role}.`, 'success');
+    await loadAdminUsersTable();
+  } catch (err) {
+    showToast(err.message || 'Failed to update user role.', 'error');
+  }
 }
 
 // Access Control View (Pending Requests + My Requests + Active Permissions)
@@ -1031,6 +1029,16 @@ async function openShareModal(preselectedDocId = null) {
       select.innerHTML = `<option value="1">Document #1</option>`;
     }
   }
+  const userSelect = document.getElementById('share-user-select');
+  if (userSelect) {
+    const users = await api('/api/permissions/users').catch(() => null);
+    if (users && users.length > 0) {
+      userSelect.innerHTML = users
+        .filter(u => !currentUser || u.username !== currentUser.username)
+        .map(u => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.fullName)} (${escapeHtml(u.username)} • ${escapeHtml(u.role)})</option>`)
+        .join('');
+    }
+  }
   document.getElementById('modal-share').classList.add('open');
 }
 
@@ -1160,17 +1168,25 @@ function escapeHtml(str) {
 // Initialize on Load
 document.addEventListener('DOMContentLoaded', async () => {
   if (!token) {
-    // If user explicitly logged out, enforce redirect to login.html on refresh/direct access
-    if (sessionStorage.getItem('trustvault_logged_out') === 'true') {
-      window.location.replace('login.html');
-      return;
-    }
-    // Otherwise perform real backend demo login for out-of-the-box evaluator access
-    const ok = await switchDemoUser('admin');
-    if (!ok) {
-      window.location.replace('login.html');
-    }
+    window.location.replace('login.html');
     return;
+  }
+  const verifiedProfile = await api('/api/auth/me').catch(() => null);
+  if (!verifiedProfile) {
+    return; // api() handles 401 redirect to login.html
+  }
+  currentUser = {
+    id: verifiedProfile.id,
+    username: verifiedProfile.username,
+    fullName: verifiedProfile.username === 'admin' ? 'Demo Admin' : verifiedProfile.fullName,
+    email: verifiedProfile.email,
+    role: verifiedProfile.role,
+    initials: verifiedProfile.username === 'admin' ? 'DA' : undefined
+  };
+  if (localStorage.getItem('trustvault_token')) {
+    localStorage.setItem('trustvault_user', JSON.stringify(currentUser));
+  } else {
+    sessionStorage.setItem('trustvault_user', JSON.stringify(currentUser));
   }
   updateUserInterface();
   loadDashboardData();

@@ -39,6 +39,12 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Column(name = "oauth_provider", length = 30)
+    private String oauthProvider = "LOCAL";
+
+    @Column(name = "oauth_provider_id", length = 120)
+    private String oauthProviderId;
+
     public User() {}
 
     public User(String username, String email, String password, String fullName, RoleName role) {
@@ -74,4 +80,10 @@ public class User {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public String getOauthProvider() { return oauthProvider; }
+    public void setOauthProvider(String oauthProvider) { this.oauthProvider = oauthProvider; }
+
+    public String getOauthProviderId() { return oauthProviderId; }
+    public void setOauthProviderId(String oauthProviderId) { this.oauthProviderId = oauthProviderId; }
 }

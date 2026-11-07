@@ -14,18 +14,15 @@
   <script src="js/dashboard.js" defer></script>
 </head>
 <body>
-  <!-- Top Evaluator Banner -->
+  <!-- Top Enterprise Security Banner -->
   <div class="evaluator-top-strip">
     <div class="strip-left">
       <span class="pulse-indicator"></span>
-      <strong>TRUSTVAULT ENTERPRISE SECURITY PLATFORM</strong> • Snovasys RISE 2026 Challenge
+      <strong>TRUSTVAULT ENTERPRISE SECURITY PLATFORM</strong> • SHA-256 Tamper-Evident Audit Ledger
     </div>
     <div class="strip-right">
-      <span>SWITCH USER:</span>
-      <button class="strip-chip active" id="chip-admin" onclick="switchDemoUser('admin')">Demo Admin (Admin)</button>
-      <button class="strip-chip" id="chip-owner" onclick="switchDemoUser('owner')">Alice Jenkins (Owner)</button>
-      <button class="strip-chip" id="chip-viewer" onclick="switchDemoUser('viewer')">Bob Smith (Viewer)</button>
-      <a href="login.html" class="strip-link">Auth Screens →</a>
+      <span id="active-session-badge" style="font-size:0.78rem; color:#93c5fd; font-weight:600;">Authenticated Session</span>
+      <a href="login.html" class="strip-link" onclick="handleLogout(); return false;">Sign Out →</a>
     </div>
   </div>
 
@@ -370,6 +367,26 @@
               <button class="btn btn-sm" style="background:#ef4444;color:#fff;" onclick="handleLogout()">Sign Out</button>
             </div>
             <div id="settings-profile-box" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;padding:0.5rem 0;"></div>
+          </div>
+          <div id="admin-user-management-card" class="panel-card" style="margin-bottom:1.5rem; display:none;">
+            <div class="panel-card-header flex-between">
+              <h3>User &amp; Role Management (Admin Only)</h3>
+              <button class="btn btn-sm" onclick="loadAdminUsersTable()">Refresh Users</button>
+            </div>
+            <table class="recent-docs-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Username</th>
+                  <th>Full Name</th>
+                  <th>Email</th>
+                  <th>Auth Provider</th>
+                  <th>Current Role</th>
+                  <th style="text-align:right;">Change Role</th>
+                </tr>
+              </thead>
+              <tbody id="admin-users-tbody"></tbody>
+            </table>
           </div>
           <div class="panel-card">
             <div class="panel-card-header">

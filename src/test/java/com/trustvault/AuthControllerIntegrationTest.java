@@ -48,7 +48,7 @@ public class AuthControllerIntegrationTest {
 
         AuthResponse response = objectMapper.readValue(result.getResponse().getContentAsString(), AuthResponse.class);
         assertThat(response.getUsername()).isEqualTo("user1");
-        assertThat(response.getRole()).isEqualTo(RoleName.ROLE_OWNER.name());
+        assertThat(response.getRole()).isEqualTo(RoleName.ROLE_VIEWER.name());
         // token should be non‑null
         assertThat(response.getJwtToken()).isNotBlank();
     }

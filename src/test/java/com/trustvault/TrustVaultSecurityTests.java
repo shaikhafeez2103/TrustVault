@@ -19,6 +19,7 @@ import com.trustvault.repository.DocumentVersionRepository;
 import com.trustvault.repository.UserRepository;
 import com.trustvault.service.AuditService;
 import com.trustvault.service.AuthService;
+import com.trustvault.service.GoogleOAuthService;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,6 +76,9 @@ public class TrustVaultSecurityTests {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private GoogleOAuthService googleOAuthService;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -559,5 +563,108 @@ public class TrustVaultSecurityTests {
         byte[] downloadedBytes = downloadRes.getResponse().getContentAsByteArray();
         assertTrue(downloadedBytes.length > validPdfBytes.length, "Watermarked PDF should contain embedded watermark stream");
         assertEquals("%PDF-", new String(downloadedBytes, 0, 5));
+    }
+
+    @Test
+    @DisplayName("SECURITY-17: Public registration always assigns least-privileged ROLE_VIEWER and Admin can manage roles")
+    public void testPublicRegistrationLeastPrivilegeAndAdminRoleManagement() throws Exception {
+        Map<String, String> regPayload = Map.of(
+                "username", "newpublicuser",
+                "email", "newpublic@trustvault.io",
+                "password", "StrongPass123!",
+                "fullName", "New Public User",
+                "role", "ROLE_ADMIN"
+        );
+
+        MvcResult regRes = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(regPayload)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Map<?, ?> regMap = objectMapper.readValue(regRes.getResponse().getContentAsString(), Map.class);
+        assertEquals("ROLE_VIEWER", regMap.get("role"), "Public registration must assign least-privileged ROLE_VIEWER");
+        String publicUserToken = (String) regMap.get("token");
+        Long publicUserId = ((Number) regMap.get("id")).longValue();
+
+        // Newly registered ROLE_VIEWER cannot upload documents (403 Forbidden)
+        MockMultipartFile file = new MockMultipartFile("file", "test.pdf", "application/pdf", "%PDF-1.4 test".getBytes());
+        mockMvc.perform(multipart("/api/documents/upload")
+                        .file(file)
+                        .param("title", "Unauthorized Upload")
+                        .header("Authorization", "Bearer " + publicUserToken))
+                .andExpect(status().isForbidden());
+
+        // Non-admin cannot promote user role (403 Forbidden)
+        mockMvc.perform(put("/api/admin/users/" + publicUserId + "/role")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("role", "ROLE_OWNER"))))
+                .andExpect(status().isForbidden());
+
+        // Admin can promote user role to ROLE_OWNER
+        mockMvc.perform(put("/api/admin/users/" + publicUserId + "/role")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("role", "ROLE_OWNER"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("SECURITY-18: Google OAuth 2.0 state protection, account takeover defense, and least-privileged provisioning")
+    public void testGoogleOAuthSecurityAndProvisioning() throws Exception {
+        // 1. OAuth status endpoint works and does not expose secrets
+        MvcResult statusRes = mockMvc.perform(get("/api/auth/oauth2/google/status"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String statusBody = statusRes.getResponse().getContentAsString();
+        assertTrue(statusBody.contains("\"authorizationEndpoint\":\"/oauth2/authorization/google\""));
+        assertFalse(statusBody.contains("clientSecret"));
+
+        // 2. Callback without valid CSRF state cookie/token is rejected and redirects with invalid_state
+        MvcResult invalidStateRes = mockMvc.perform(get("/login/oauth2/code/google")
+                        .param("code", "fake_code")
+                        .param("state", "tampered_state"))
+                .andExpect(status().is3xxRedirection())
+                .andReturn();
+        assertEquals("/login.html?oauth_error=invalid_state", invalidStateRes.getResponse().getRedirectedUrl());
+
+        // 3. Unverified Google email is rejected
+        assertThrows(SecurityException.class, () ->
+                googleOAuthService.processVerifiedGoogleIdentity("google-sub-001", "unverified@gmail.com", false, "Unverified", "127.0.0.1")
+        );
+
+        // 4. Account takeover defense: Google OAuth cannot auto-link to privileged Admin or Owner accounts by email
+        SecurityException adminConflict = assertThrows(SecurityException.class, () ->
+                googleOAuthService.processVerifiedGoogleIdentity("google-sub-attacker", "admin@trustvault.io", true, "Attacker", "127.0.0.1")
+        );
+        assertEquals("account_conflict", adminConflict.getMessage());
+
+        SecurityException ownerConflict = assertThrows(SecurityException.class, () ->
+                googleOAuthService.processVerifiedGoogleIdentity("google-sub-attacker2", "owner@trustvault.io", true, "Attacker", "127.0.0.1")
+        );
+        assertEquals("account_conflict", ownerConflict.getMessage());
+
+        // 5. Valid Google identity provisions least-privileged ROLE_VIEWER and issues single-use exchange code
+        String exchangeCode = googleOAuthService.processVerifiedGoogleIdentity(
+                "google-sub-valid-999", "googleuser@example.com", true, "Google Verified User", "127.0.0.1");
+        assertNotNull(exchangeCode);
+
+        MvcResult exchangeRes = mockMvc.perform(post("/api/auth/oauth2/exchange")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("code", exchangeCode))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Map<?, ?> authData = objectMapper.readValue(exchangeRes.getResponse().getContentAsString(), Map.class);
+        assertEquals("ROLE_VIEWER", authData.get("role"), "Google OAuth user must receive least-privileged ROLE_VIEWER");
+        assertEquals("googleuser@example.com", authData.get("email"));
+        assertNotNull(authData.get("token"));
+
+        // 6. Replaying the single-use exchange code a second time is rejected with 401 Unauthorized
+        mockMvc.perform(post("/api/auth/oauth2/exchange")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("code", exchangeCode))))
+                .andExpect(status().isUnauthorized());
     }
 }

@@ -19,11 +19,11 @@ The application seeds three role-based accounts on startup for evaluation:
 
 | Role | Username | Full Name | Primary Capabilities |
 |---|---|---|---|
-| **Admin** | `admin` | Security Administrator | Review immutable audit ledger, monitor 24h threat metrics, run cryptographic tamper verification. |
+| **Admin** | `admin` | Security Administrator | Review immutable audit ledger, monitor 24h threat metrics, manage user roles, run cryptographic tamper verification. |
 | **Document Owner** | `owner` | Alice Jenkins (Chief Legal Officer) | Upload confidential files, manage version history, grant/revoke permissions, review access requests. |
 | **Viewer** | `viewer` | Bob Smith (Compliance Auditor) | Browse permitted files, download with forensic watermarking, submit access requests for locked files. |
 
-> **Evaluator Tip:** The web application features **1-Click Demo Role Switcher buttons** in the top banner (`login.html` and `index.html`), allowing you to instantly switch between Admin, Owner, and Viewer roles during local evaluation.
+> **Security Policy:** New public account registrations and new Google OAuth 2.0 sign-ins are provisioned with the least-privileged `ROLE_VIEWER` role by default. Only an authenticated Administrator (`ROLE_ADMIN`) can promote accounts via `PUT /api/admin/users/{id}/role`.
 
 ---
 
@@ -117,6 +117,27 @@ Open your browser at `http://localhost:8082/login.html` (or `http://localhost:80
    run_maven.bat spring-boot:run
    ```
 4. Access the web dashboard at `http://localhost:8082`.
+
+### Option C: Google OAuth 2.0 / OpenID Connect Configuration
+TrustVault implements backend-verified Google OAuth 2.0 Authorization Code Flow with CSRF state/nonce cookie validation, OIDC UserInfo verification (`email_verified == true`), account-takeover protection (blocking automatic email linking to privileged `ROLE_ADMIN`/`ROLE_OWNER` accounts), and automatic `ROLE_VIEWER` provisioning.
+
+Configure the following environment variables in Render (or locally):
+```env
+GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET
+GOOGLE_REDIRECT_URI=https://trustvault-pxqr.onrender.com/login/oauth2/code/google
+```
+
+**Google Cloud Console Setup:**
+1. Open **Google Cloud Console → APIs & Services → Credentials**.
+2. Create an **OAuth 2.0 Client ID** (Application type: **Web application**).
+3. Add **Authorized JavaScript origins**:
+   - `https://trustvault-pxqr.onrender.com`
+   - `http://localhost:8082` (optional for local development)
+4. Add **Authorized redirect URIs**:
+   - `https://trustvault-pxqr.onrender.com/login/oauth2/code/google`
+   - `http://localhost:8082/login/oauth2/code/google` (optional for local development)
+5. Copy the generated Client ID and Client Secret into your Render Web Service **Environment** tab as `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI`.
 
 ---
 

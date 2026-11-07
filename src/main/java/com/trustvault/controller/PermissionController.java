@@ -2,16 +2,21 @@ package com.trustvault.controller;
 
 import com.trustvault.dto.PermissionGrantRequest;
 import com.trustvault.dto.PermissionResponse;
+import com.trustvault.entity.User;
+import com.trustvault.repository.UserRepository;
 import com.trustvault.service.PermissionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/permissions")
@@ -19,6 +24,26 @@ public class PermissionController {
 
     @Autowired
     private PermissionService permissionService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @GetMapping("/users")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> getShareableUsers() {
+        List<User> users = userRepository.findAll();
+        List<Map<String, Object>> result = users.stream()
+                .filter(User::isEnabled)
+                .map(u -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("username", u.getUsername());
+                    m.put("fullName", u.getFullName());
+                    m.put("role", u.getRole().name());
+                    return m;
+                })
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
 
     @PostMapping("/documents/{id}/grant")
     public ResponseEntity<PermissionResponse> grantPermission(

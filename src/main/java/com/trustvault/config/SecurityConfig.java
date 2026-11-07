@@ -74,8 +74,16 @@ public class SecurityConfig {
                     "/favicon.ico"
                 ).permitAll()
 
-                // Public Auth Endpoints (except /api/auth/me which requires authentication)
-                .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/forgot-password", "/api/auth/logout").permitAll()
+                // Public Auth & Google OAuth 2.0 Endpoints (except /api/auth/me which requires authentication)
+                .requestMatchers(
+                    "/api/auth/login",
+                    "/api/auth/register",
+                    "/api/auth/forgot-password",
+                    "/api/auth/logout",
+                    "/api/auth/oauth2/**",
+                    "/oauth2/authorization/google",
+                    "/login/oauth2/code/google"
+                ).permitAll()
                 .requestMatchers("/api/auth/me").authenticated()
 
                 // Admin Endpoints

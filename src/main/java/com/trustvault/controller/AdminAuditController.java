@@ -4,12 +4,16 @@ import com.trustvault.dto.AuditLogResponse;
 import com.trustvault.dto.SecurityStatsResponse;
 import com.trustvault.entity.User;
 import com.trustvault.enums.AuditAction;
+import com.trustvault.enums.RoleName;
+import com.trustvault.exception.ResourceNotFoundException;
 import com.trustvault.repository.UserRepository;
 import com.trustvault.service.AuditService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -59,9 +63,62 @@ public class AdminAuditController {
             map.put("email", u.getEmail());
             map.put("role", u.getRole().name());
             map.put("enabled", u.isEnabled());
+            map.put("oauthProvider", u.getOauthProvider() != null ? u.getOauthProvider() : "LOCAL");
             return map;
         }).collect(Collectors.toList());
 
         return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/users/{id}/role")
+    public ResponseEntity<Map<String, Object>> updateUserRole(
+            @PathVariable("id") Long userId,
+            @RequestBody Map<String, String> payload,
+            Authentication authentication,
+            HttpServletRequest request) {
+
+        User target = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
+
+        if ("admin".equalsIgnoreCase(target.getUsername())) {
+            throw new IllegalArgumentException("Primary system administrator role cannot be modified.");
+        }
+
+        String requestedRoleStr = payload != null ? payload.get("role") : null;
+        if (requestedRoleStr == null || requestedRoleStr.isBlank()) {
+            throw new IllegalArgumentException("Target role is required.");
+        }
+
+        RoleName newRole;
+        try {
+            newRole = RoleName.valueOf(requestedRoleStr.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid role specified: " + requestedRoleStr);
+        }
+
+        RoleName oldRole = target.getRole();
+        target.setRole(newRole);
+        User saved = userRepository.save(target);
+
+        String clientIp = request != null ? request.getRemoteAddr() : "UNKNOWN";
+        String adminUser = authentication != null ? authentication.getName() : "admin";
+        auditService.logSecurityEvent(
+                adminUser,
+                AuditAction.PERMISSION_GRANTED,
+                "USER",
+                saved.getId().toString(),
+                "Updated user '" + saved.getUsername() + "' role from " + oldRole + " to " + newRole,
+                clientIp,
+                true
+        );
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", saved.getId());
+        result.put("username", saved.getUsername());
+        result.put("fullName", saved.getFullName());
+        result.put("email", saved.getEmail());
+        result.put("role", saved.getRole().name());
+        result.put("enabled", saved.isEnabled());
+        return ResponseEntity.ok(result);
     }
 }
