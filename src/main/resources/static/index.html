@@ -23,7 +23,7 @@
     </div>
     <div class="strip-right">
       <span>SWITCH USER:</span>
-      <button class="strip-chip active" id="chip-admin" onclick="switchDemoUser('admin')">Abdul Haffiz (Admin)</button>
+      <button class="strip-chip active" id="chip-admin" onclick="switchDemoUser('admin')">Demo Admin (Admin)</button>
       <button class="strip-chip" id="chip-owner" onclick="switchDemoUser('owner')">Alice Jenkins (Owner)</button>
       <button class="strip-chip" id="chip-viewer" onclick="switchDemoUser('viewer')">Bob Smith (Viewer)</button>
       <a href="login.html" class="strip-link">Auth Screens →</a>
@@ -101,9 +101,9 @@
             <span class="bell-dot"></span>
           </button>
           <div class="user-profile-widget" onclick="window.location.href='login.html'">
-            <div class="user-avatar-circle" id="header-avatar">AH</div>
+            <div class="user-avatar-circle" id="header-avatar">DA</div>
             <div class="user-name-meta">
-              <strong id="header-username">Abdul Haffiz</strong>
+              <strong id="header-username">Demo Admin</strong>
               <span id="header-role">Admin</span>
             </div>
             <svg class="chevron-down" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
@@ -121,7 +121,7 @@
           <!-- Welcome / Overview Section -->
           <div class="welcome-banner-card">
             <div class="welcome-text-col">
-              <h2>Welcome back, <span id="welcome-user-name">Abdul Haffiz</span> 👋</h2>
+              <h2>Welcome back, <span id="welcome-user-name">Demo Admin</span> 👋</h2>
               <p>Manage, share, and control your documents securely with TrustVault.</p>
             </div>
             <div class="welcome-graphic-col">
@@ -349,7 +349,7 @@
       <div class="modal-dialog-header"><h3>Grant Document Permission</h3><button class="close-btn" onclick="closeModal('modal-share')">&times;</button></div>
       <div class="modal-dialog-body">
         <div class="form-row"><label>Document ID</label><select id="share-doc-select" class="form-input"></select></div>
-        <div class="form-row"><label>Select User to Grant Access</label><select id="share-user-select" class="form-input"><option value="viewer">Bob Smith (viewer)</option><option value="owner">Alice Jenkins (owner)</option><option value="admin">Abdul Haffiz (admin)</option></select></div>
+        <div class="form-row"><label>Select User to Grant Access</label><select id="share-user-select" class="form-input"><option value="viewer">Bob Smith (viewer)</option><option value="owner">Alice Jenkins (owner)</option><option value="admin">Demo Admin (admin)</option></select></div>
         <div class="form-row"><label>Permission Type</label><select id="share-perm-select" class="form-input"><option value="READ">READ</option><option value="EDIT">EDIT</option></select></div>
         <div style="margin-top:1rem;text-align:right;">
           <button class="btn btn-sm btn-primary" onclick="executeShareDocument()">Grant Access</button>

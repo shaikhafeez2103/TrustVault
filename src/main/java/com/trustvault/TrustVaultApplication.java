@@ -46,7 +46,7 @@ public class TrustVaultApplication {
                         "admin",
                         "admin@trustvault.io",
                         passwordEncoder.encode("Admin@123"),
-                        "Security Administrator",
+                        "Demo Admin",
                         RoleName.ROLE_ADMIN
                 );
                 userRepository.save(admin);

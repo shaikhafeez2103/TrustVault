@@ -12,9 +12,9 @@ const DEMO_USERS = {
   admin: {
     username: 'admin',
     password: 'Admin@123',
-    fullName: 'Abdul Haffiz',
+    fullName: 'Demo Admin',
     role: 'Admin',
-    initials: 'AH'
+    initials: 'DA'
   },
   owner: {
     username: 'owner',

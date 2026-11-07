@@ -8,7 +8,7 @@ USE trustvault_db;
 
 INSERT IGNORE INTO users (id, username, email, password, full_name, role, enabled, created_at)
 VALUES 
-(1, 'admin', 'admin@trustvault.io', '$2a$10$V8T2jQk6e9p6a9D9rXk3EuxfV8P7U1A4R.jWl2yM6VqY0gR8GgR1W', 'Security Administrator', 'ROLE_ADMIN', TRUE, NOW()),
+(1, 'admin', 'admin@trustvault.io', '$2a$10$V8T2jQk6e9p6a9D9rXk3EuxfV8P7U1A4R.jWl2yM6VqY0gR8GgR1W', 'Demo Admin', 'ROLE_ADMIN', TRUE, NOW()),
 (2, 'owner', 'owner@trustvault.io', '$2a$10$0mI6hE1qL0F9H0xQ.R1sveX1jK.n7L2aQ8vF.E4uY8sW3qJ6D6n2.', 'Alice Jenkins (CLO)', 'ROLE_OWNER', TRUE, NOW()),
 (3, 'viewer', 'viewer@trustvault.io', '$2a$10$Q7wL8eR9tY0uI1oP2aS3deZ4kX5jC6vB7nM8lK9jH0gF1dE2sA3q.', 'Bob Smith (Auditor)', 'ROLE_VIEWER', TRUE, NOW());
 
