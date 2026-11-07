@@ -11,8 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <script src="js/theme-switcher.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="js/dashboard.js" defer></script>
+  <script src="js/dashboard.js" defer></script>
 </head>
 <body>
   <!-- Top Evaluator Banner -->
@@ -100,14 +99,14 @@
             <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
             <span class="bell-dot"></span>
           </button>
-          <div class="user-profile-widget" onclick="window.location.href='login.html'">
+          <div class="user-profile-widget" onclick="navigateTo('settings')" title="Account Settings">
             <div class="user-avatar-circle" id="header-avatar">DA</div>
             <div class="user-name-meta">
               <strong id="header-username">Demo Admin</strong>
               <span id="header-role">Admin</span>
             </div>
-            <svg class="chevron-down" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
           </div>
+          <button id="logoutBtn" class="btn btn-sm" style="background:#ef4444;color:#fff;border:none;padding:0.45rem 0.75rem;border-radius:8px;font-weight:600;cursor:pointer;" onclick="handleLogout()" title="Sign out and clear session">Logout</button>
         </div>
       
 
@@ -339,7 +338,112 @@
             </table>
           </div>
         </div>
+
+        <!-- VIEW: RECYCLE BIN -->
+        <div id="view-recycle-bin" class="view-panel" style="display:none;">
+          <div class="panel-card">
+            <div class="panel-card-header flex-between">
+              <h3>Recycle Bin (Soft-Deleted Documents)</h3>
+              <button class="btn btn-sm" onclick="loadRecycleBinView()">Refresh</button>
+            </div>
+            <table class="recent-docs-table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Owner</th>
+                  <th>Size</th>
+                  <th>Deleted At</th>
+                  <th style="text-align:right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="recycle-bin-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- VIEW: SETTINGS -->
+        <div id="view-settings" class="view-panel" style="display:none;">
+          <div class="panel-card" style="margin-bottom:1.5rem;">
+            <div class="panel-card-header flex-between">
+              <h3>Active Account &amp; Security Profile</h3>
+              <button class="btn btn-sm" style="background:#ef4444;color:#fff;" onclick="handleLogout()">Sign Out</button>
+            </div>
+            <div id="settings-profile-box" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;padding:0.5rem 0;"></div>
+          </div>
+          <div class="panel-card">
+            <div class="panel-card-header">
+              <h3>Role-Based Access Control (RBAC) Policy Matrix</h3>
+            </div>
+            <table class="recent-docs-table">
+              <thead>
+                <tr>
+                  <th>Capability</th>
+                  <th>Admin (ROLE_ADMIN)</th>
+                  <th>Owner (ROLE_OWNER)</th>
+                  <th>Viewer (ROLE_VIEWER)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Upload New Documents</td><td>Allowed</td><td>Allowed</td><td>Blocked (403)</td></tr>
+                <tr><td>Manage / Delete Own Documents</td><td>Allowed (All)</td><td>Allowed (Own Only)</td><td>Blocked (403)</td></tr>
+                <tr><td>View / Download Private Documents</td><td>Allowed</td><td>Own or Explicitly Shared</td><td>Explicitly Shared Only</td></tr>
+                <tr><td>Edit Metadata / Upload New Version</td><td>Allowed</td><td>Own or EDIT Permission</td><td>EDIT Permission Only</td></tr>
+                <tr><td>Grant / Revoke Permissions</td><td>Allowed</td><td>Own Documents Only</td><td>Blocked (403)</td></tr>
+                <tr><td>Audit Trail &amp; SHA-256 Tamper Check</td><td>Allowed</td><td>Blocked (403)</td><td>Blocked (403)</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </main>
+    </div>
+  </div>
+
+  <!-- UPLOAD DOCUMENT MODAL -->
+  <div id="modal-upload-doc" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-dialog-header"><h3>Upload Confidential Document</h3><button class="close-btn" onclick="closeModal('modal-upload-doc')">&times;</button></div>
+      <div class="modal-dialog-body">
+        <div class="form-row"><label>Document Title *</label><input type="text" id="upload-modal-title" class="form-input" placeholder="e.g., Q4 Board Audit Report" required /></div>
+        <div class="form-row"><label>Category</label><select id="upload-modal-category" class="form-input"><option value="General">General</option><option value="Finance">Finance</option><option value="Legal &amp; Board">Legal &amp; Board</option><option value="Compliance">Compliance</option><option value="HR &amp; Payroll">HR &amp; Payroll</option></select></div>
+        <div class="form-row"><label>Description</label><input type="text" id="upload-modal-desc" class="form-input" placeholder="Brief confidential summary..." /></div>
+        <div class="form-row"><label>Select File (PDF, DOCX, TXT, CSV, XLSX, PNG, JPG — Max 10MB) *</label><input type="file" id="upload-modal-file" class="form-input" required /></div>
+        <div style="margin-top:1rem;text-align:right;display:flex;gap:0.5rem;justify-content:flex-end;">
+          <button class="btn btn-sm" onclick="closeModal('modal-upload-doc')">Cancel</button>
+          <button class="btn btn-sm btn-primary" onclick="submitUploadModal()">Encrypt &amp; Upload</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DOCUMENT VERSIONS MODAL -->
+  <div id="modal-versions" class="modal-backdrop">
+    <div class="modal-dialog" style="max-width:650px;">
+      <div class="modal-dialog-header"><h3>Version History — <span id="versions-modal-title">Document</span></h3><button class="close-btn" onclick="closeModal('modal-versions')">&times;</button></div>
+      <div class="modal-dialog-body">
+        <input type="hidden" id="versions-doc-id" />
+        <div id="versions-upload-box" style="margin-bottom:1rem;padding:0.85rem;background:rgba(37,99,235,0.06);border-radius:8px;border:1px solid var(--border-color);">
+          <strong style="display:block;font-size:0.82rem;margin-bottom:0.5rem;">Upload New Version</strong>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+            <input type="file" id="version-new-file" class="form-input" style="flex:1;min-width:180px;" />
+            <input type="text" id="version-change-summary" class="form-input" placeholder="Change summary (e.g., Updated clause 4)" style="flex:1;min-width:180px;" />
+            <button class="btn btn-sm btn-primary" onclick="submitNewDocumentVersion()">Upload Version</button>
+          </div>
+        </div>
+        <table class="recent-docs-table">
+          <thead>
+            <tr>
+              <th>Ver</th>
+              <th>Filename</th>
+              <th>Uploaded By</th>
+              <th>SHA-256</th>
+              <th>Summary</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="versions-modal-tbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 

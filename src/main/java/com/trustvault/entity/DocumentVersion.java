@@ -1,5 +1,6 @@
 package com.trustvault.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -13,6 +14,7 @@ public class DocumentVersion {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_id", nullable = false)
     private Document document;
@@ -20,6 +22,7 @@ public class DocumentVersion {
     @Column(name = "version_number", nullable = false)
     private int versionNumber;
 
+    @JsonIgnore
     @Column(name = "storage_path", nullable = false, length = 255)
     private String storagePath;
 

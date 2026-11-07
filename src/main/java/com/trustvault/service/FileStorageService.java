@@ -52,8 +52,8 @@ public class FileStorageService {
 
         String rawFilename = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unnamed");
 
-        // Path Traversal Defense
-        if (rawFilename.contains("..") || rawFilename.contains("/") || rawFilename.contains("\\")) {
+        // Path Traversal & Null Byte Defense
+        if (rawFilename.contains("..") || rawFilename.contains("/") || rawFilename.contains("\\") || rawFilename.contains("\0")) {
             throw new FileStorageException("Filename contains invalid path sequence: " + rawFilename);
         }
 
@@ -92,6 +92,9 @@ public class FileStorageService {
     public Resource loadFileAsResource(String storageFilename) {
         try {
             Path filePath = this.storageLocation.resolve(storageFilename).normalize();
+            if (!filePath.startsWith(this.storageLocation)) {
+                throw new FileStorageException("Invalid storage path traversal blocked.");
+            }
             Resource resource = new UrlResource(filePath.toUri());
             if (resource.exists() && resource.isReadable()) {
                 return resource;

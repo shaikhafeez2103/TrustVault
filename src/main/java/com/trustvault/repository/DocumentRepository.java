@@ -15,7 +15,11 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
 
     List<Document> findByDeletedFalse();
 
+    List<Document> findByDeletedTrue();
+
     List<Document> findByOwnerAndDeletedFalse(User owner);
+
+    List<Document> findByOwnerAndDeletedTrue(User owner);
 
     @Query("SELECT d FROM Document d WHERE d.deleted = false AND " +
            "(:query IS NULL OR LOWER(d.title) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(d.description) LIKE LOWER(CONCAT('%', :query, '%'))) AND " +

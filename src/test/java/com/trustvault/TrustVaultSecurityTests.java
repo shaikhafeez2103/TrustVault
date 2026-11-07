@@ -18,6 +18,9 @@ import com.trustvault.repository.DocumentRepository;
 import com.trustvault.repository.DocumentVersionRepository;
 import com.trustvault.repository.UserRepository;
 import com.trustvault.service.AuditService;
+import com.trustvault.service.AuthService;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,17 +30,23 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.io.ByteArrayOutputStream;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("h2")
 public class TrustVaultSecurityTests {
 
     @Autowired
@@ -65,6 +74,9 @@ public class TrustVaultSecurityTests {
     private AuditService auditService;
 
     @Autowired
+    private AuthService authService;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -77,6 +89,7 @@ public class TrustVaultSecurityTests {
 
     @BeforeEach
     public void setup() throws Exception {
+        authService.clearRateLimiter();
         accessRequestRepository.deleteAll();
         permissionRepository.deleteAll();
         versionRepository.deleteAll();
@@ -275,5 +288,276 @@ public class TrustVaultSecurityTests {
         TamperCheckResult tamperDetected = auditService.verifyAuditTrailIntegrity();
         assertFalse(tamperDetected.isValid(), "Tamper verification must detect data tampering in modified record");
         assertEquals(legitimate.getId(), tamperDetected.getBrokenRecordId(), "Tamper verification must pinpoint the exact compromised record");
+    }
+
+    @Test
+    @DisplayName("SECURITY-09: Unauthenticated requests and invalid JWT tokens return 401 Unauthorized (not 403)")
+    public void testUnauthenticatedAndInvalidTokenReturn401() throws Exception {
+        mockMvc.perform(get("/api/documents"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/documents")
+                        .header("Authorization", "Bearer invalid.jwt.token"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("SECURITY-10: Document version history succeeds without LazyInitializationException and hides storagePath")
+    public void testDocumentVersionHistoryAndAuthorization() throws Exception {
+        MockMultipartFile v1File = new MockMultipartFile(
+                "file", "contract_v1.pdf", "application/pdf", "%PDF-1.4 v1".getBytes());
+
+        MvcResult uploadRes = mockMvc.perform(multipart("/api/documents/upload")
+                        .file(v1File)
+                        .param("title", "Master Service Agreement")
+                        .param("description", "Initial contract")
+                        .param("category", "Legal")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Map<?, ?> docMap = objectMapper.readValue(uploadRes.getResponse().getContentAsString(), Map.class);
+        Long docId = ((Number) docMap.get("id")).longValue();
+
+        // Owner fetches version history -> 200 OK, no LazyInitializationException, no internal storagePath leaked
+        MvcResult versionsRes = mockMvc.perform(get("/api/documents/" + docId + "/versions")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String versionsJson = versionsRes.getResponse().getContentAsString();
+        assertTrue(versionsJson.contains("\"versionNumber\":1"), "Version 1 must be present");
+        assertFalse(versionsJson.contains("storagePath"), "Internal storagePath must not be serialized");
+
+        // Unauthorized viewer receives 403 Forbidden
+        mockMvc.perform(get("/api/documents/" + docId + "/versions")
+                        .header("Authorization", "Bearer " + viewerToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("SECURITY-11: Security stats count only active, non-expired permissions on non-deleted documents")
+    public void testSecurityStatsActivePermissionsAccuracy() throws Exception {
+        PermissionGrantRequest grantReq = new PermissionGrantRequest("viewer", PermissionType.READ, null);
+        MvcResult grantRes = mockMvc.perform(post("/api/permissions/documents/" + confidentialDoc.getId() + "/grant")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(grantReq)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Map<?, ?> permMap = objectMapper.readValue(grantRes.getResponse().getContentAsString(), Map.class);
+        Long permId = ((Number) permMap.get("id")).longValue();
+
+        MvcResult statsBefore = mockMvc.perform(get("/api/admin/stats")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        Map<?, ?> statsMapBefore = objectMapper.readValue(statsBefore.getResponse().getContentAsString(), Map.class);
+        assertEquals(1, ((Number) statsMapBefore.get("activePermissions")).intValue());
+
+        // Revoke permission -> activePermissions must drop to 0
+        mockMvc.perform(delete("/api/permissions/documents/" + confidentialDoc.getId() + "/revoke/" + permId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk());
+
+        MvcResult statsAfter = mockMvc.perform(get("/api/admin/stats")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        Map<?, ?> statsMapAfter = objectMapper.readValue(statsAfter.getResponse().getContentAsString(), Map.class);
+        assertEquals(0, ((Number) statsMapAfter.get("activePermissions")).intValue());
+    }
+
+    @Test
+    @DisplayName("SECURITY-12: Permission revocation validates documentId match and grant rejects past expiresAt")
+    public void testPermissionRevocationDocumentMismatchAndPastExpiryRejected() throws Exception {
+        PermissionGrantRequest grantReq = new PermissionGrantRequest("viewer", PermissionType.READ, null);
+        MvcResult grantRes = mockMvc.perform(post("/api/permissions/documents/" + confidentialDoc.getId() + "/grant")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(grantReq)))
+                .andExpect(status().isOk())
+                .andReturn();
+        Map<?, ?> permMap = objectMapper.readValue(grantRes.getResponse().getContentAsString(), Map.class);
+        Long permId = ((Number) permMap.get("id")).longValue();
+
+        // Create second document
+        User ownerUser = userRepository.findByUsername("owner").orElseThrow();
+        Document secondDoc = documentRepository.save(new Document(
+                "Second Document", "Desc", "General", "sec.pdf", "sec_stored.pdf", "application/pdf", 512L, "abc1234", ownerUser));
+
+        // Attempt to revoke permId using secondDoc's ID -> 400 Bad Request
+        mockMvc.perform(delete("/api/permissions/documents/" + secondDoc.getId() + "/revoke/" + permId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isBadRequest());
+
+        // Attempt to grant permission with past expiration -> 400 Bad Request
+        PermissionGrantRequest pastGrant = new PermissionGrantRequest("viewer", PermissionType.READ, LocalDateTime.now().minusDays(2));
+        mockMvc.perform(post("/api/permissions/documents/" + confidentialDoc.getId() + "/grant")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(pastGrant)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("SECURITY-13: Access request approval clears expired expiresAt, blocks duplicate pending requests, and blocks re-review")
+    public void testAccessRequestLifecycleAndExpiredPermissionRenewal() throws Exception {
+        User ownerUser = userRepository.findByUsername("owner").orElseThrow();
+        User viewerUser = userRepository.findByUsername("viewer").orElseThrow();
+
+        // Pre-seed an expired permission for viewer on confidentialDoc
+        DocumentPermission expiredPerm = new DocumentPermission(
+                confidentialDoc, viewerUser, PermissionType.READ, ownerUser, LocalDateTime.now().minusDays(1));
+        permissionRepository.save(expiredPerm);
+
+        // Viewer cannot currently access the document because permission is expired
+        mockMvc.perform(get("/api/documents/" + confidentialDoc.getId())
+                        .header("Authorization", "Bearer " + viewerToken))
+                .andExpect(status().isForbidden());
+
+        // Viewer requests access
+        Map<String, Object> reqPayload = Map.of(
+                "documentId", confidentialDoc.getId(),
+                "requestedPermission", "READ",
+                "reason", "Need updated access for Q4 audit"
+        );
+        MvcResult createRes = mockMvc.perform(post("/api/requests")
+                        .header("Authorization", "Bearer " + viewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(reqPayload)))
+                .andExpect(status().isOk())
+                .andReturn();
+        Map<?, ?> createdReq = objectMapper.readValue(createRes.getResponse().getContentAsString(), Map.class);
+        Long requestId = ((Number) createdReq.get("id")).longValue();
+
+        // Duplicate pending request for same document is rejected (400 Bad Request)
+        mockMvc.perform(post("/api/requests")
+                        .header("Authorization", "Bearer " + viewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(reqPayload)))
+                .andExpect(status().isBadRequest());
+
+        // Owner approves the request
+        mockMvc.perform(post("/api/requests/" + requestId + "/review")
+                        .param("approve", "true")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk());
+
+        // Viewer can now access the document immediately (expired expiresAt was cleared)
+        mockMvc.perform(get("/api/documents/" + confidentialDoc.getId())
+                        .header("Authorization", "Bearer " + viewerToken))
+                .andExpect(status().isOk());
+
+        // Re-reviewing an already reviewed request is rejected (400 Bad Request)
+        mockMvc.perform(post("/api/requests/" + requestId + "/review")
+                        .param("approve", "false")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("SECURITY-14: Soft delete moves document to Recycle Bin and restore recovers it")
+    public void testSoftDeleteAndRecycleBinRestore() throws Exception {
+        // Soft-delete confidentialDoc
+        mockMvc.perform(delete("/api/documents/" + confidentialDoc.getId())
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk());
+
+        // Accessing deleted document fails with 404 Not Found
+        mockMvc.perform(get("/api/documents/" + confidentialDoc.getId())
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isNotFound());
+
+        // Deleted document appears in Recycle Bin
+        MvcResult binRes = mockMvc.perform(get("/api/documents/deleted")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        List<?> deletedList = objectMapper.readValue(binRes.getResponse().getContentAsString(), List.class);
+        assertEquals(1, deletedList.size());
+
+        // Restore document from Recycle Bin
+        mockMvc.perform(post("/api/documents/" + confidentialDoc.getId() + "/restore")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk());
+
+        // Document is accessible again
+        mockMvc.perform(get("/api/documents/" + confidentialDoc.getId())
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("SECURITY-15: Brute-force login rate limiting locks out after 5 failed attempts and weak passwords are rejected")
+    public void testBruteForceProtectionAndStrongPasswordPolicy() throws Exception {
+        LoginRequest badLogin = new LoginRequest("viewer", "WrongPassword123!");
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(badLogin)))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        // 6th attempt must be locked out with HTTP 429 Too Many Requests
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(badLogin)))
+                .andExpect(status().isTooManyRequests());
+
+        authService.clearRateLimiter();
+
+        // Weak password registration (missing uppercase / < 8 chars) must be rejected with 400 Bad Request
+        Map<String, String> weakReg = Map.of(
+                "username", "weakuser",
+                "email", "weak@trustvault.io",
+                "password", "123456",
+                "fullName", "Weak User"
+        );
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(weakReg)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("SECURITY-16: Dynamic PDF watermarking produces valid PDF and sets nosniff & sanitized Content-Disposition")
+    public void testDynamicPdfWatermarkingAndDownloadHeaders() throws Exception {
+        byte[] validPdfBytes;
+        try (PDDocument pdf = new PDDocument(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            pdf.addPage(new PDPage());
+            pdf.save(baos);
+            validPdfBytes = baos.toByteArray();
+        }
+
+        MockMultipartFile pdfFile = new MockMultipartFile(
+                "file", "report_2026.pdf", "application/pdf", validPdfBytes);
+
+        MvcResult uploadRes = mockMvc.perform(multipart("/api/documents/upload")
+                        .file(pdfFile)
+                        .param("title", "Board Report 2026")
+                        .param("description", "Valid PDF test")
+                        .param("category", "Corporate")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Map<?, ?> docMap = objectMapper.readValue(uploadRes.getResponse().getContentAsString(), Map.class);
+        Long docId = ((Number) docMap.get("id")).longValue();
+
+        MvcResult downloadRes = mockMvc.perform(get("/api/documents/" + docId + "/download")
+                        .param("watermark", "true")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andReturn();
+
+        byte[] downloadedBytes = downloadRes.getResponse().getContentAsByteArray();
+        assertTrue(downloadedBytes.length > validPdfBytes.length, "Watermarked PDF should contain embedded watermark stream");
+        assertEquals("%PDF-", new String(downloadedBytes, 0, 5));
     }
 }

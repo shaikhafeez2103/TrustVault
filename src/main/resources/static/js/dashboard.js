@@ -1,22 +1,27 @@
 // State & Credentials
-let currentUser = JSON.parse(localStorage.getItem('trustvault_user') || 'null');
-let token = localStorage.getItem('trustvault_token') || null;
+let currentUser = JSON.parse(
+  localStorage.getItem('trustvault_user') ||
+  sessionStorage.getItem('trustvault_user') ||
+  'null'
+);
+let token =
+  localStorage.getItem('trustvault_token') ||
+  sessionStorage.getItem('trustvault_token') ||
+  null;
 
 // Sanitize any stale localStorage user profile for the demo admin account
 if (currentUser && (currentUser.username === 'admin' || /abdul|haffiz|administrator/i.test(currentUser.fullName || ''))) {
   currentUser.fullName = 'Demo Admin';
   currentUser.initials = 'DA';
-  currentUser.role = 'Admin';
-  localStorage.setItem('trustvault_user', JSON.stringify(currentUser));
+  currentUser.role = currentUser.role || 'ROLE_ADMIN';
+  if (localStorage.getItem('trustvault_user')) {
+    localStorage.setItem('trustvault_user', JSON.stringify(currentUser));
+  } else if (sessionStorage.getItem('trustvault_user')) {
+    sessionStorage.setItem('trustvault_user', JSON.stringify(currentUser));
+  }
 }
 
-// Auto‑login demo admin if no token present (ensures upload works out‑of‑the‑box)
-if (!token) {
-  // fire the demo login for admin – it will set token & currentUser in localStorage
-  switchDemoUser('admin');
-}
-
-// Fallback demo users
+// Demo evaluator credentials (authenticated via real backend POST /api/auth/login)
 const DEMO_USERS = {
   admin: {
     username: 'admin',
@@ -58,18 +63,51 @@ async function api(url, options = {}) {
   });
 
   if (response.status === 401) {
-    showToast('Session expired. Please log in.', 'error');
-    window.location.href = 'login.html';
+    clearClientSession();
+    showToast('Session expired or unauthorized. Redirecting to login...', 'error');
+    setTimeout(() => {
+      window.location.replace('login.html');
+    }, 300);
     return null;
   }
   if (!response.ok) {
     const err = await response.json().catch(() => ({ message: 'Request failed' }));
     throw new Error(err.message || 'Error');
   }
+  if (response.status === 204 || response.headers.get('content-length') === '0') {
+    return true;
+  }
   return await response.json();
 }
 
-// Switch Demo User
+function clearClientSession() {
+  token = null;
+  currentUser = null;
+  localStorage.removeItem('trustvault_token');
+  localStorage.removeItem('trustvault_user');
+  sessionStorage.removeItem('trustvault_token');
+  sessionStorage.removeItem('trustvault_user');
+  sessionStorage.setItem('trustvault_logged_out', 'true');
+}
+
+async function handleLogout() {
+  try {
+    if (token) {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).catch(() => {});
+    }
+  } finally {
+    clearClientSession();
+    showToast('Signed out securely.', 'info');
+    setTimeout(() => {
+      window.location.replace('login.html');
+    }, 250);
+  }
+}
+
+// Switch Demo User (Strictly authenticates against backend /api/auth/login)
 async function switchDemoUser(userKey) {
   const target = DEMO_USERS[userKey] || DEMO_USERS.admin;
   try {
@@ -78,45 +116,77 @@ async function switchDemoUser(userKey) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: target.username, password: target.password })
     });
-    if (res.ok) {
-      const data = await res.json();
-      token = data.token;
-      currentUser = {
-        id: data.id,
-        username: data.username,
-        fullName: target.fullName,
-        email: data.email,
-        role: target.role,
-        initials: target.initials
-      };
-      localStorage.setItem('trustvault_token', token);
-      localStorage.setItem('trustvault_user', JSON.stringify(currentUser));
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Demo authentication failed' }));
+      showToast(err.message || 'Backend authentication failed.', 'error');
+      return false;
     }
+    const data = await res.json();
+    token = data.token;
+    currentUser = {
+      id: data.id,
+      username: data.username,
+      fullName: data.username === 'admin' ? 'Demo Admin' : (data.fullName || target.fullName),
+      email: data.email,
+      role: data.role || target.role,
+      initials: target.initials
+    };
+    sessionStorage.removeItem('trustvault_logged_out');
+    localStorage.setItem('trustvault_token', token);
+    localStorage.setItem('trustvault_user', JSON.stringify(currentUser));
   } catch (e) {
-    currentUser = target;
+    showToast('Network error connecting to authentication service.', 'error');
+    return false;
   }
 
-  // Update UI chips
-  document.querySelectorAll('.strip-chip').forEach(c => c.classList.remove('active'));
-  const chip = document.getElementById(`chip-${userKey}`);
-  if (chip) chip.classList.add('active');
-
   updateUserInterface();
-  showToast(`Switched active user to ${target.fullName} (${target.role})`, 'success');
-  loadDashboardData();
+  showToast(`Switched active user to ${currentUser.fullName} (${currentUser.role})`, 'success');
+  navigateTo(currentView);
+  return true;
+}
+
+function isViewerRole() {
+  if (!currentUser) return false;
+  const r = String(currentUser.role || '').toUpperCase();
+  return r.includes('VIEWER') || currentUser.username === 'viewer';
+}
+
+function isAdminRole() {
+  if (!currentUser) return false;
+  const r = String(currentUser.role || '').toUpperCase();
+  return r.includes('ADMIN') || currentUser.username === 'admin';
 }
 
 function updateUserInterface() {
-  if (!currentUser) currentUser = DEMO_USERS.admin;
+  if (!currentUser) return;
   if (currentUser.username === 'admin') {
     currentUser.fullName = 'Demo Admin';
     currentUser.initials = 'DA';
   }
 
-  document.getElementById('header-avatar').innerText = currentUser.initials || currentUser.fullName?.charAt(0) || 'U';
-  document.getElementById('header-username').innerText = currentUser.fullName || currentUser.username;
-  document.getElementById('header-role').innerText = currentUser.role || 'User';
-  document.getElementById('welcome-user-name').innerText = currentUser.fullName || currentUser.username;
+  const avatarEl = document.getElementById('header-avatar');
+  const nameEl = document.getElementById('header-username');
+  const roleEl = document.getElementById('header-role');
+  const welcomeEl = document.getElementById('welcome-user-name');
+
+  if (avatarEl) avatarEl.innerText = currentUser.initials || currentUser.fullName?.charAt(0) || 'U';
+  if (nameEl) nameEl.innerText = currentUser.fullName || currentUser.username;
+  if (roleEl) roleEl.innerText = currentUser.role || 'User';
+  if (welcomeEl) welcomeEl.innerText = currentUser.fullName || currentUser.username;
+
+  // Highlight active demo user chip in top evaluator strip
+  document.querySelectorAll('.strip-chip').forEach(c => c.classList.remove('active'));
+  const activeKey = currentUser.username === 'admin' ? 'admin' : currentUser.username === 'owner' ? 'owner' : currentUser.username === 'viewer' ? 'viewer' : null;
+  if (activeKey) {
+    const chip = document.getElementById(`chip-${activeKey}`);
+    if (chip) chip.classList.add('active');
+  }
+
+  // Role-based UI visibility for upload button
+  const uploadBtn = document.getElementById('uploadBtn');
+  if (uploadBtn) {
+    uploadBtn.style.display = isViewerRole() ? 'none' : 'inline-flex';
+  }
 }
 
 // Navigation between views
@@ -144,18 +214,23 @@ function navigateTo(viewId) {
 
   document.getElementById('page-title').innerText = titles[viewId] || 'Dashboard';
 
+  if (viewId === 'my-docs' || viewId === 'shared-with-me' || viewId === 'shared-by-me') {
+    const panel = document.getElementById('view-my-docs');
+    if (panel) panel.style.display = 'block';
+    loadAllDocumentsView(viewId);
+    return;
+  }
+
   const targetPanel = document.getElementById(`view-${viewId}`);
   if (targetPanel) {
     targetPanel.style.display = 'block';
-  } else {
-    // Default fallback to my-docs view
-    document.getElementById('view-my-docs').style.display = 'block';
   }
 
   if (viewId === 'dashboard') loadDashboardData();
-  if (viewId === 'my-docs' || viewId === 'shared-with-me' || viewId === 'shared-by-me') loadAllDocumentsView(viewId);
   if (viewId === 'access-control') loadAccessControlView();
   if (viewId === 'audit-logs') loadAuditLogsView();
+  if (viewId === 'recycle-bin') loadRecycleBinView();
+  if (viewId === 'settings') loadSettingsView();
 }
 
 // Load Dashboard Data & KPIs from Real Backend APIs
@@ -176,9 +251,9 @@ async function loadDashboardData() {
 
   try {
     const [stats, users, logs] = await Promise.all([
-      api('/api/admin/stats').catch(() => null),
-      api('/api/admin/users').catch(() => null),
-      api('/api/admin/audit-logs').catch(() => null)
+      isAdminRole() ? api('/api/admin/stats').catch(() => null) : Promise.resolve(null),
+      isAdminRole() ? api('/api/admin/users').catch(() => null) : Promise.resolve(null),
+      isAdminRole() ? api('/api/admin/audit-logs').catch(() => null) : Promise.resolve(null)
     ]);
 
     if (stats) {
@@ -201,7 +276,6 @@ async function loadDashboardData() {
         `;
       }
     } else {
-      // Non-admin user: compute accessible counts from user's own endpoints
       const [myDocs, sharedDocs, myReqs] = await Promise.all([
         api('/api/documents/my').catch(() => []),
         api('/api/documents/shared').catch(() => []),
@@ -212,23 +286,33 @@ async function loadDashboardData() {
       if (kpiPerms) kpiPerms.innerText = sharedDocs ? sharedDocs.length : 0;
       if (kpiAudit) kpiAudit.innerText = `${myReqs ? myReqs.length : 0} Requests`;
       if (postureBox) {
-        postureBox.innerHTML = `<span style="color:#64748b;">Signed in as <strong>${escapeHtml(currentUser?.username || 'user')}</strong> (${escapeHtml(currentUser?.role || 'User')}). Switch to Admin to view system-wide security metrics and full audit ledger.</span>`;
+        postureBox.innerHTML = `<span style="color:var(--text-muted);">Signed in as <strong>${escapeHtml(currentUser?.username || 'user')}</strong> (${escapeHtml(currentUser?.role || 'User')}). Switch to Admin to view system-wide security metrics and full audit ledger.</span>`;
       }
     }
 
     if (recentActList) {
       if (logs && logs.length > 0) {
         recentActList.innerHTML = logs.slice(0, 6).map(l => `
-          <li style="padding:0.65rem 1rem;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;font-size:0.85rem;">
+          <li style="padding:0.65rem 1rem;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;font-size:0.85rem;">
             <div>
-              <strong style="color:${l.success ? '#0f172a' : '#ef4444'};">[${escapeHtml(l.action)}]</strong>
+              <strong style="color:${l.success ? 'var(--text-dark)' : '#ef4444'};">[${escapeHtml(l.action)}]</strong>
               <span>${escapeHtml(l.username)} &mdash; ${escapeHtml(l.details)}</span>
             </div>
-            <span style="color:#64748b;font-size:0.78rem;">${new Date(l.timestamp).toLocaleString()}</span>
+            <span style="color:var(--text-muted);font-size:0.78rem;">${new Date(l.timestamp).toLocaleString()}</span>
           </li>
         `).join('');
       } else {
-        recentActList.innerHTML = '<li style="padding:0.75rem 1rem;color:#64748b;">Admin role required to view global audit stream.</li>';
+        const userActivities = await api('/api/recent-activities').catch(() => []);
+        if (userActivities && userActivities.length > 0) {
+          recentActList.innerHTML = userActivities.slice(0, 6).map(a => `
+            <li style="padding:0.65rem 1rem;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;font-size:0.85rem;">
+              <span>${escapeHtml(a.description)}</span>
+              <span style="color:var(--text-muted);font-size:0.78rem;">${escapeHtml(a.timestamp)}</span>
+            </li>
+          `).join('');
+        } else {
+          recentActList.innerHTML = '<li style="padding:0.75rem 1rem;color:var(--text-muted);">No recent audit activity recorded for this account.</li>';
+        }
       }
     }
   } catch (err) {
@@ -243,6 +327,18 @@ async function loadDashboardData() {
   loadPendingAccessRequests();
 }
 
+function updateStorageMeter(docs) {
+  const storageText = document.getElementById('sidebar-storage-text');
+  const fillEl = document.querySelector('.sidebar-storage-box .progress-bar-fill');
+  if (!storageText) return;
+  const totalBytes = (docs || []).reduce((acc, d) => acc + (d.fileSize || 0), 0);
+  const kb = (totalBytes / 1024).toFixed(1);
+  const maxBytes = 10 * 1024 * 1024; // 10 MB per-file cap reference
+  const pct = Math.min(100, Math.max(2, Math.round((totalBytes / maxBytes) * 100)));
+  storageText.innerText = `${kb} KB of 10 MB`;
+  if (fillEl) fillEl.style.width = `${pct}%`;
+}
+
 // Populate Recent Documents from Backend APIs
 async function loadRecentDocuments() {
   const tbody = document.getElementById('recent-docs-tbody');
@@ -250,20 +346,26 @@ async function loadRecentDocuments() {
   tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#94a3b8; padding:1.5rem;">Loading documents...</td></tr>';
 
   try {
-    const [myDocs, sharedDocs] = await Promise.all([
+    const requests = [
       api('/api/documents/my').catch(() => []),
       api('/api/documents/shared').catch(() => [])
-    ]);
+    ];
+    if (isAdminRole()) {
+      requests.push(api('/api/documents/search').catch(() => []));
+    }
+    const [myDocs, sharedDocs, allDocs] = await Promise.all(requests);
 
     const combinedMap = new Map();
     (myDocs || []).forEach(d => combinedMap.set(d.id, d));
     (sharedDocs || []).forEach(d => combinedMap.set(d.id, d));
+    (allDocs || []).forEach(d => combinedMap.set(d.id, d));
     documentsList = Array.from(combinedMap.values());
+    updateStorageMeter(documentsList);
 
     if (documentsList.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="5" style="text-align:center; color:#64748b; padding:1.5rem;">
+          <td colspan="5" style="text-align:center; color:var(--text-muted); padding:1.5rem;">
             No accessible documents found for this user.
             <button class="btn btn-sm btn-primary" style="margin-left:0.75rem;" onclick="openRequestAccessModal(1)">Request Access to Document #1</button>
           </td>
@@ -279,6 +381,7 @@ async function loadRecentDocuments() {
         month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
       });
       const isOwner = d.owner || (currentUser && d.ownerUsername === currentUser.username);
+      const canManage = isOwner || isAdminRole();
       const accessLabel = isOwner ? 'OWNER' : (d.myPermission || 'SHARED');
 
       return `
@@ -286,7 +389,7 @@ async function loadRecentDocuments() {
           <td>
             <div class="doc-name-cell">
               <div class="file-badge-icon ${type}">${type.toUpperCase()}</div>
-              <span>${escapeHtml(d.title)} <small style="color:#64748b;">(#${d.id})</small></span>
+              <span>${escapeHtml(d.title)} <small style="color:var(--text-muted);">(#${d.id} • v${d.currentVersion || 1})</small></span>
             </div>
           </td>
           <td>${escapeHtml(isOwner ? 'You (' + d.ownerUsername + ')' : d.ownerUsername)}</td>
@@ -296,10 +399,13 @@ async function loadRecentDocuments() {
               ${escapeHtml(accessLabel)}
             </span>
           </td>
-          <td style="text-align: right; display:flex; gap:0.4rem; justify-content:flex-end;">
+          <td style="text-align: right; display:flex; gap:0.35rem; justify-content:flex-end; flex-wrap:wrap;">
+            <button class="btn btn-sm" onclick="previewDocument(${d.id})" title="Preview in browser">Preview</button>
             <button class="btn btn-sm btn-primary" onclick="downloadDocument(${d.id})">Download</button>
-            <button class="btn btn-sm" onclick="openEditDocumentModal(${d.id})">Edit</button>
-            ${!isOwner ? `<button class="btn btn-sm" onclick="openRequestAccessModal(${d.id})">Request Access</button>` : `<button class="btn btn-sm" onclick="openShareModal(${d.id})">Share</button>`}
+            <button class="btn btn-sm" onclick="openVersionsModal(${d.id}, '${escapeHtml(d.title)}')">Versions</button>
+            ${d.canEdit || canManage ? `<button class="btn btn-sm" onclick="openEditDocumentModal(${d.id})">Edit</button>` : ''}
+            ${canManage ? `<button class="btn btn-sm" onclick="openShareModal(${d.id})">Share</button>` : `<button class="btn btn-sm" onclick="openRequestAccessModal(${d.id})">Request Access</button>`}
+            ${canManage ? `<button class="btn btn-sm" style="background:#ef4444;color:#fff;" onclick="deleteDocument(${d.id})">Delete</button>` : ''}
           </td>
         </tr>
       `;
@@ -325,8 +431,8 @@ async function loadPendingAccessRequests() {
     const pending = await api('/api/requests/pending');
     if (!pending || pending.length === 0) {
       const emptyMsg = 'No pending access requests for documents you own.';
-      if (dashTbody) dashTbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#64748b;padding:1rem;">${emptyMsg}</td></tr>`;
-      if (manageTbody) manageTbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#64748b;padding:1rem;">${emptyMsg}</td></tr>`;
+      if (dashTbody) dashTbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem;">${emptyMsg}</td></tr>`;
+      if (manageTbody) manageTbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1rem;">${emptyMsg}</td></tr>`;
       return;
     }
 
@@ -375,7 +481,7 @@ async function loadMySubmittedRequests() {
   try {
     const list = await api('/api/requests/my');
     if (!list || list.length === 0) {
-      myReqTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:1rem;">You have not submitted any access requests yet.</td></tr>';
+      myReqTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem;">You have not submitted any access requests yet.</td></tr>';
       return;
     }
     myReqTbody.innerHTML = list.map(r => `
@@ -442,7 +548,56 @@ async function reviewAccessRequest(requestId, approve) {
 
 // Upload Trigger & Handling
 function triggerFileInput() {
-  document.getElementById('dashboard-file-input').click();
+  if (isViewerRole()) {
+    showToast('Security Block: Viewers are not permitted to upload documents.', 'error');
+    return;
+  }
+  const modal = document.getElementById('modal-upload-doc');
+  if (modal) {
+    modal.classList.add('open');
+  } else {
+    document.getElementById('dashboard-file-input').click();
+  }
+}
+
+async function submitUploadModal() {
+  const titleInput = document.getElementById('upload-modal-title');
+  const categoryInput = document.getElementById('upload-modal-category');
+  const descInput = document.getElementById('upload-modal-desc');
+  const fileInput = document.getElementById('upload-modal-file');
+
+  const file = fileInput?.files?.[0];
+  if (!file) {
+    showToast('Please select a file to upload.', 'error');
+    return;
+  }
+  const title = (titleInput?.value || '').trim() || file.name;
+  const category = (categoryInput?.value || 'General').trim();
+  const description = (descInput?.value || '').trim();
+
+  const formData = new FormData();
+  formData.append('title', title);
+  formData.append('category', category);
+  formData.append('description', description);
+  formData.append('file', file);
+
+  try {
+    showToast(`Encrypting & uploading '${title}' with magic-byte validation...`, 'info');
+    await api('/api/documents/upload', {
+      method: 'POST',
+      body: formData,
+      isFormData: true
+    });
+    showToast(`'${title}' securely uploaded and chained in audit ledger!`, 'success');
+    closeModal('modal-upload-doc');
+    if (titleInput) titleInput.value = '';
+    if (descInput) descInput.value = '';
+    if (fileInput) fileInput.value = '';
+    loadDashboardData();
+    if (currentView === 'my-docs') loadAllDocumentsView('my-docs');
+  } catch (err) {
+    showToast(err.message || 'File upload failed.', 'error');
+  }
 }
 
 async function handleFileSelect(e) {
@@ -469,48 +624,148 @@ async function handleFileSelect(e) {
   }
 }
 
-// All Documents View
+// All Documents View (My Documents / Shared with Me / Shared by Me)
 async function loadAllDocumentsView(type) {
   const targetPanel = document.getElementById('view-my-docs');
   if (targetPanel) targetPanel.style.display = 'block';
+
+  const heading = document.getElementById('docs-view-heading');
+  if (heading) {
+    heading.innerText = type === 'shared-with-me'
+      ? 'Shared with Me'
+      : type === 'shared-by-me'
+        ? 'Shared by Me'
+        : 'My Documents';
+  }
 
   const tbody = document.getElementById('all-docs-tbody');
   if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:#94a3b8;">Loading documents repository...</td></tr>';
 
-  let endpoint = '/api/documents/my';
-  if (type === 'shared-with-me') endpoint = '/api/documents/shared';
-
   try {
-    const list = await api(endpoint);
+    let list = [];
+    if (type === 'shared-with-me') {
+      list = await api('/api/documents/shared');
+    } else if (type === 'shared-by-me') {
+      const myDocs = await api('/api/documents/my');
+      const filtered = [];
+      for (const d of (myDocs || [])) {
+        const perms = await api(`/api/permissions/documents/${d.id}`).catch(() => []);
+        if (perms && perms.some(p => p.active)) {
+          filtered.push(d);
+        }
+      }
+      list = filtered;
+    } else {
+      list = await api('/api/documents/my');
+      if (isAdminRole() && (!list || list.length === 0)) {
+        list = await api('/api/documents/search');
+      }
+    }
+
     if (!list || list.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:#64748b;">No documents found in this view.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No documents found in this view.</td></tr>';
       return;
     }
 
-    tbody.innerHTML = list.map(d => `
-      <tr>
-        <td>
-          <div class="doc-name-cell">
-            <div class="file-badge-icon pdf">FILE</div>
-            <span>${escapeHtml(d.title)} <small style="color:#64748b;">(#${d.id})</small></span>
-          </div>
-        </td>
-        <td>${escapeHtml(d.category)}</td>
-        <td>${escapeHtml(d.ownerUsername)}</td>
-        <td>${(d.fileSize / 1024).toFixed(1)} KB</td>
-        <td>${new Date(d.createdAt).toLocaleDateString()}</td>
-        <td><span class="access-pill shared">${escapeHtml(d.myPermission)}</span></td>
-        <td style="text-align: right; display:flex; gap:0.4rem; justify-content:flex-end;">
-          <button class="btn btn-sm btn-primary" onclick="downloadDocument(${d.id})">Download</button>
-          <button class="btn btn-sm" onclick="openEditDocumentModal(${d.id})">Edit</button>
-          <button class="btn btn-sm" onclick="openRequestAccessModal(${d.id})">Request Access</button>
-        </td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = list.map(d => {
+      const isOwner = d.owner || (currentUser && d.ownerUsername === currentUser.username);
+      const canManage = isOwner || isAdminRole();
+      return `
+        <tr>
+          <td>
+            <div class="doc-name-cell">
+              <div class="file-badge-icon pdf">FILE</div>
+              <span>${escapeHtml(d.title)} <small style="color:var(--text-muted);">(#${d.id} • v${d.currentVersion || 1})</small></span>
+            </div>
+          </td>
+          <td>${escapeHtml(d.category)}</td>
+          <td>${escapeHtml(d.ownerUsername)}</td>
+          <td>${(d.fileSize / 1024).toFixed(1)} KB</td>
+          <td>${new Date(d.createdAt).toLocaleDateString()}</td>
+          <td><span class="access-pill shared">${escapeHtml(d.myPermission)}</span></td>
+          <td style="text-align: right; display:flex; gap:0.35rem; justify-content:flex-end; flex-wrap:wrap;">
+            <button class="btn btn-sm" onclick="previewDocument(${d.id})">Preview</button>
+            <button class="btn btn-sm btn-primary" onclick="downloadDocument(${d.id})">Download</button>
+            <button class="btn btn-sm" onclick="openVersionsModal(${d.id}, '${escapeHtml(d.title)}')">Versions</button>
+            ${d.canEdit || canManage ? `<button class="btn btn-sm" onclick="openEditDocumentModal(${d.id})">Edit</button>` : ''}
+            ${canManage ? `<button class="btn btn-sm" onclick="openShareModal(${d.id})">Share</button>` : `<button class="btn btn-sm" onclick="openRequestAccessModal(${d.id})">Request Access</button>`}
+            ${canManage ? `<button class="btn btn-sm" style="background:#ef4444;color:#fff;" onclick="deleteDocument(${d.id})">Delete</button>` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#ef4444;">Failed to load documents: ${escapeHtml(e.message)}</td></tr>`;
   }
+}
+
+// Recycle Bin View (Soft-Deleted Documents)
+async function loadRecycleBinView() {
+  const tbody = document.getElementById('recycle-bin-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:#94a3b8;">Loading recycle bin...</td></tr>';
+
+  try {
+    const deletedDocs = await api('/api/documents/deleted');
+    if (!deletedDocs || deletedDocs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem; color:var(--text-muted);">Recycle bin is empty. Soft-deleted documents will appear here.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = deletedDocs.map(d => `
+      <tr>
+        <td><strong>${escapeHtml(d.title)}</strong> (#${d.id})</td>
+        <td>${escapeHtml(d.category)}</td>
+        <td>${escapeHtml(d.ownerUsername)}</td>
+        <td>${(d.fileSize / 1024).toFixed(1)} KB</td>
+        <td>${new Date(d.updatedAt || d.createdAt).toLocaleString()}</td>
+        <td style="text-align:right;">
+          <button class="btn btn-sm btn-primary" onclick="restoreDeletedDocument(${d.id})">Restore Document</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#ef4444; padding:1.5rem;">Failed to load recycle bin: ${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+async function restoreDeletedDocument(docId) {
+  try {
+    await api(`/api/documents/${docId}/restore`, { method: 'POST' });
+    showToast(`Document #${docId} restored from Recycle Bin!`, 'success');
+    loadRecycleBinView();
+  } catch (err) {
+    showToast(err.message || 'Failed to restore document.', 'error');
+  }
+}
+
+// Settings View
+async function loadSettingsView() {
+  const box = document.getElementById('settings-profile-box');
+  if (!box) return;
+  try {
+    const profile = await api('/api/auth/me').catch(() => currentUser);
+    const u = profile || currentUser || {};
+    box.innerHTML = `
+      <div style="padding:1rem;border:1px solid var(--border-color);border-radius:10px;">
+        <span style="font-size:0.75rem;color:var(--text-muted);display:block;">Full Name</span>
+        <strong style="font-size:1rem;">${escapeHtml(u.fullName || 'N/A')}</strong>
+      </div>
+      <div style="padding:1rem;border:1px solid var(--border-color);border-radius:10px;">
+        <span style="font-size:0.75rem;color:var(--text-muted);display:block;">Username</span>
+        <strong style="font-size:1rem;">${escapeHtml(u.username || 'N/A')}</strong>
+      </div>
+      <div style="padding:1rem;border:1px solid var(--border-color);border-radius:10px;">
+        <span style="font-size:0.75rem;color:var(--text-muted);display:block;">Email Address</span>
+        <strong style="font-size:1rem;">${escapeHtml(u.email || `${u.username}@trustvault.io`)}</strong>
+      </div>
+      <div style="padding:1rem;border:1px solid var(--border-color);border-radius:10px;">
+        <span style="font-size:0.75rem;color:var(--text-muted);display:block;">Assigned Security Role</span>
+        <span class="access-pill shared" style="margin-top:0.25rem;">${escapeHtml(u.role || 'USER')}</span>
+      </div>
+    `;
+  } catch (e) {}
 }
 
 // Access Control View (Pending Requests + My Requests + Active Permissions)
@@ -523,9 +778,10 @@ async function loadAccessControlView() {
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:#94a3b8;">Loading active permissions from backend...</td></tr>';
 
   try {
-    const myDocs = await api('/api/documents/my').catch(() => []);
+    const docsEndpoint = isAdminRole() ? '/api/documents/search' : '/api/documents/my';
+    const myDocs = await api(docsEndpoint).catch(() => []);
     if (!myDocs || myDocs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:#64748b;">No owned documents to manage permissions for.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No owned documents to manage permissions for.</td></tr>';
       return;
     }
 
@@ -535,7 +791,7 @@ async function loadAccessControlView() {
     const allPerms = permArrays.flat();
 
     if (allPerms.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:#64748b;">No permissions granted on your documents yet.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:var(--text-muted);">No permissions granted on your documents yet.</td></tr>';
       return;
     }
 
@@ -579,7 +835,7 @@ async function loadAuditLogsView() {
   try {
     const logs = await api('/api/admin/audit-logs');
     if (!logs || logs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:2rem; color:#64748b;">Ledger is empty.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">Ledger is empty.</td></tr>';
       return;
     }
 
@@ -589,10 +845,10 @@ async function loadAuditLogsView() {
         <td>${new Date(l.timestamp).toLocaleString()}</td>
         <td><span class="access-pill ${l.success ? 'shared' : 'private'}">${escapeHtml(l.action)}</span></td>
         <td>${escapeHtml(l.username)}</td>
-        <td>${escapeHtml(l.resourceType)}</td>
+        <td>${escapeHtml(l.resourceType)}${l.resourceId ? ' #' + escapeHtml(l.resourceId) : ''}</td>
         <td>${escapeHtml(l.ipAddress || '127.0.0.1')}</td>
         <td><strong style="color:${l.success ? '#16a34a' : '#ef4444'};">${l.success ? 'SUCCESS' : 'BLOCKED'}</strong></td>
-        <td style="font-family:monospace; font-size:0.72rem; color:#64748b;">${escapeHtml((l.previousHash || '').substring(0, 10))}... &rarr; ${escapeHtml((l.currentHash || '').substring(0, 10))}...</td>
+        <td style="font-family:monospace; font-size:0.72rem; color:var(--text-muted);">${escapeHtml((l.previousHash || '').substring(0, 10))}... &rarr; ${escapeHtml((l.currentHash || '').substring(0, 10))}...</td>
       </tr>
     `).join('');
   } catch (e) {
@@ -625,6 +881,30 @@ async function runTamperProofCheck() {
   }
 }
 
+// Preview Document Inline
+async function previewDocument(id) {
+  try {
+    showToast(`Loading watermarked preview for Document #${id}...`, 'info');
+    const response = await fetch(`/api/documents/${id}/download?watermark=true&inline=true`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (response.status === 403) {
+      showToast('Security Alert: Access Forbidden by IDOR policy.', 'error');
+      return;
+    }
+    if (!response.ok) {
+      showToast('Preview failed.', 'error');
+      return;
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setTimeout(() => window.URL.revokeObjectURL(url), 30000);
+  } catch (e) {
+    showToast('Failed to preview document.', 'error');
+  }
+}
+
 // Download Document with Watermark
 async function downloadDocument(id) {
   try {
@@ -649,9 +929,93 @@ async function downloadDocument(id) {
     document.body.appendChild(a);
     a.click();
     a.remove();
+    window.URL.revokeObjectURL(url);
     showToast('Download complete with forensic watermark.', 'success');
   } catch (e) {
     showToast('Download failed.', 'error');
+  }
+}
+
+// Delete Document (Soft Delete -> Recycle Bin)
+async function deleteDocument(id) {
+  if (!confirm(`Move Document #${id} to the Recycle Bin? This action is recorded in the cryptographic audit trail.`)) return;
+  try {
+    await api(`/api/documents/${id}`, { method: 'DELETE' });
+    showToast(`Document #${id} moved to Recycle Bin.`, 'success');
+    if (currentView === 'dashboard') loadDashboardData();
+    else loadAllDocumentsView(currentView);
+  } catch (err) {
+    showToast(err.message || 'Access denied: Only the document owner can delete this document.', 'error');
+  }
+}
+
+// Document Version History Modal
+async function openVersionsModal(docId, docTitle) {
+  document.getElementById('versions-doc-id').value = docId;
+  document.getElementById('versions-modal-title').innerText = docTitle || `Document #${docId}`;
+  const doc = documentsList.find(d => d.id === docId);
+  const uploadBox = document.getElementById('versions-upload-box');
+  if (uploadBox) {
+    const canEditDoc = !doc || doc.canEdit || doc.owner || isAdminRole();
+    uploadBox.style.display = canEditDoc ? 'block' : 'none';
+  }
+  document.getElementById('modal-versions').classList.add('open');
+  await loadDocumentVersions(docId);
+}
+
+async function loadDocumentVersions(docId) {
+  const tbody = document.getElementById('versions-modal-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:1rem;">Loading version history...</td></tr>';
+  try {
+    const versions = await api(`/api/documents/${docId}/versions`);
+    if (!versions || versions.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1rem;">No version records found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = versions.map(v => `
+      <tr>
+        <td><strong>v${v.versionNumber}</strong></td>
+        <td>${escapeHtml(v.originalFilename)}</td>
+        <td>${escapeHtml(v.uploadedBy?.username || 'owner')}</td>
+        <td style="font-family:monospace;font-size:0.75rem;">${escapeHtml((v.fileChecksum || '').substring(0, 14))}...</td>
+        <td>${escapeHtml(v.changeSummary || '-')}</td>
+        <td>${new Date(v.createdAt).toLocaleString()}</td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#ef4444;padding:1rem;">${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+async function submitNewDocumentVersion() {
+  const docId = document.getElementById('versions-doc-id').value;
+  const fileInput = document.getElementById('version-new-file');
+  const summaryInput = document.getElementById('version-change-summary');
+
+  if (!fileInput?.files?.length) {
+    showToast('Please select a file for the new version.', 'error');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  formData.append('changeSummary', (summaryInput?.value || '').trim() || 'Updated document version');
+
+  try {
+    await api(`/api/documents/${docId}/versions`, {
+      method: 'POST',
+      body: formData,
+      isFormData: true
+    });
+    showToast('New document version uploaded and checksum chained!', 'success');
+    fileInput.value = '';
+    if (summaryInput) summaryInput.value = '';
+    await loadDocumentVersions(docId);
+    if (currentView === 'dashboard') loadDashboardData();
+    else loadAllDocumentsView(currentView);
+  } catch (err) {
+    showToast(err.message || 'Failed to upload new version.', 'error');
   }
 }
 
@@ -659,7 +1023,7 @@ async function downloadDocument(id) {
 async function openShareModal(preselectedDocId = null) {
   const select = document.getElementById('share-doc-select');
   if (select) {
-    const myDocs = await api('/api/documents/my').catch(() => []);
+    const myDocs = await api(isAdminRole() ? '/api/documents/search' : '/api/documents/my').catch(() => []);
     const list = (myDocs && myDocs.length > 0) ? myDocs : documentsList;
     if (list && list.length > 0) {
       select.innerHTML = list.map(d => `<option value="${d.id}" ${d.id === preselectedDocId ? 'selected' : ''}>${escapeHtml(d.title)} (#${d.id})</option>`).join('');
@@ -708,6 +1072,11 @@ async function submitEditDocument() {
   const category = document.getElementById('edit-doc-category').value.trim();
   const description = document.getElementById('edit-doc-description').value.trim();
 
+  if (!title) {
+    showToast('Document title cannot be empty.', 'error');
+    return;
+  }
+
   try {
     await api(`/api/documents/${docId}`, {
       method: 'PUT',
@@ -737,7 +1106,7 @@ async function handleGlobalSearch(query) {
     const tbody = document.getElementById('recent-docs-tbody');
     if (tbody && results) {
       if (results.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:1rem;">No matching documents found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem;">No matching documents found.</td></tr>';
       } else {
         tbody.innerHTML = results.map(d => `
           <tr>
@@ -746,8 +1115,8 @@ async function handleGlobalSearch(query) {
             <td>${new Date(d.updatedAt || d.createdAt).toLocaleDateString()}</td>
             <td><span class="access-pill shared">${escapeHtml(d.myPermission)}</span></td>
             <td style="text-align:right;">
+              <button class="btn btn-sm" onclick="previewDocument(${d.id})">Preview</button>
               <button class="btn btn-sm btn-primary" onclick="downloadDocument(${d.id})">Download</button>
-              <button class="btn btn-sm" onclick="openRequestAccessModal(${d.id})">Request Access</button>
             </td>
           </tr>
         `).join('');
@@ -761,7 +1130,7 @@ function handleDocumentAction(id) {
 }
 
 function handleUserMenuToggle() {
-  window.location.href = 'login.html';
+  handleLogout();
 }
 
 function showToast(message, type = 'info') {
@@ -789,7 +1158,20 @@ function escapeHtml(str) {
 }
 
 // Initialize on Load
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!token) {
+    // If user explicitly logged out, enforce redirect to login.html on refresh/direct access
+    if (sessionStorage.getItem('trustvault_logged_out') === 'true') {
+      window.location.replace('login.html');
+      return;
+    }
+    // Otherwise perform real backend demo login for out-of-the-box evaluator access
+    const ok = await switchDemoUser('admin');
+    if (!ok) {
+      window.location.replace('login.html');
+    }
+    return;
+  }
   updateUserInterface();
   loadDashboardData();
 });

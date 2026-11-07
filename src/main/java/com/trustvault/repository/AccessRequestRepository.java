@@ -14,6 +14,8 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
 
     List<AccessRequest> findByDocumentOwnerAndStatus(User owner, AccessStatus status);
 
+    List<AccessRequest> findByStatus(AccessStatus status);
+
     List<AccessRequest> findByDocumentOwner(User owner);
 
     List<AccessRequest> findByRequester(User requester);

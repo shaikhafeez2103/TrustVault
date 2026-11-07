@@ -62,6 +62,21 @@ public class DocumentController {
         return ResponseEntity.ok(list);
     }
 
+    @GetMapping("/deleted")
+    public ResponseEntity<List<DocumentResponse>> getDeletedDocuments(Authentication authentication) {
+        List<DocumentResponse> list = documentService.getDeletedDocuments(authentication);
+        return ResponseEntity.ok(list);
+    }
+
+    @PostMapping("/{id}/restore")
+    public ResponseEntity<DocumentResponse> restoreDocument(
+            @PathVariable("id") Long id,
+            Authentication authentication,
+            HttpServletRequest request) {
+        DocumentResponse restored = documentService.restoreDocument(id, authentication, request);
+        return ResponseEntity.ok(restored);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<DocumentResponse> getDocumentById(
             @PathVariable("id") Long id,
@@ -76,14 +91,20 @@ public class DocumentController {
     public ResponseEntity<?> downloadDocument(
             @PathVariable("id") Long id,
             @RequestParam(value = "watermark", defaultValue = "true") boolean watermark,
+            @RequestParam(value = "inline", defaultValue = "false") boolean inline,
             Authentication authentication,
             HttpServletRequest request) {
 
         DocumentService.ResourceAndMetadata res = documentService.downloadDocument(id, watermark, authentication, request);
+        String safeFilename = res.getFilename() != null
+                ? res.getFilename().replaceAll("[\\r\\n\"\\\\]", "_")
+                : "document";
+        String dispositionType = inline ? "inline" : "attachment";
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(res.getContentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + res.getFilename() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, dispositionType + "; filename=\"" + safeFilename + "\"")
+                .header("X-Content-Type-Options", "nosniff")
                 .body(res.getResource());
     }
 

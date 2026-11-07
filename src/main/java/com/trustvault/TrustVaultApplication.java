@@ -13,6 +13,11 @@ import com.trustvault.repository.DocumentRepository;
 import com.trustvault.repository.DocumentVersionRepository;
 import com.trustvault.repository.UserRepository;
 import com.trustvault.service.AuditService;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -86,8 +91,10 @@ public class TrustVaultApplication {
 
                 String sampleFileName = "seed_board_resolution_2026.pdf";
                 Path sampleFilePath = uploadDir.resolve(sampleFileName);
-                if (!Files.exists(sampleFilePath)) {
-                    Files.writeString(sampleFilePath, "%PDF-1.4\n%Seed confidential board resolution\nTrustVault Enterprise Document\n%%EOF");
+                if (!Files.exists(sampleFilePath) || Files.size(sampleFilePath) < 200) {
+                    writeValidSeedPdf(sampleFilePath,
+                            "Q4 Strategic M&A Resolution",
+                            "Confidential board-approved acquisition and IP transfer terms for Project Phoenix.");
                 }
 
                 Document sampleDoc = new Document(
@@ -128,8 +135,10 @@ public class TrustVaultApplication {
                 // Seed a strictly private document owned by Alice where Bob has NO permission (for testing IDOR)
                 String privateFileName = "seed_executive_salaries_2026.pdf";
                 Path privateFilePath = uploadDir.resolve(privateFileName);
-                if (!Files.exists(privateFilePath)) {
-                    Files.writeString(privateFilePath, "%PDF-1.4\n%Seed executive payroll confidential\n%%EOF");
+                if (!Files.exists(privateFilePath) || Files.size(privateFilePath) < 200) {
+                    writeValidSeedPdf(privateFilePath,
+                            "FY2026 Executive Compensation Ledger",
+                            "Highly restricted executive payroll, equity options, and retention bonuses.");
                 }
 
                 Document privateDoc = new Document(
@@ -174,5 +183,39 @@ public class TrustVaultApplication {
                 });
             }
         };
+    }
+
+    private static void writeValidSeedPdf(Path targetPath, String title, String subtitle) {
+        try (PDDocument pdf = new PDDocument()) {
+            PDPage page = new PDPage();
+            pdf.addPage(page);
+            PDType1Font boldFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDType1Font bodyFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            try (PDPageContentStream cs = new PDPageContentStream(pdf, page)) {
+                cs.beginText();
+                cs.setFont(boldFont, 16);
+                cs.newLineAtOffset(50, 720);
+                cs.showText("TRUSTVAULT ENTERPRISE DOCUMENT");
+                cs.endText();
+
+                cs.beginText();
+                cs.setFont(boldFont, 13);
+                cs.newLineAtOffset(50, 690);
+                cs.showText(title);
+                cs.endText();
+
+                cs.beginText();
+                cs.setFont(bodyFont, 11);
+                cs.newLineAtOffset(50, 665);
+                cs.showText(subtitle);
+                cs.endText();
+            }
+            pdf.save(targetPath.toFile());
+        } catch (Exception e) {
+            try {
+                Files.writeString(targetPath, "%PDF-1.4\n%TrustVault Seed Document\n%%EOF");
+            } catch (Exception ignored) {
+            }
+        }
     }
 }

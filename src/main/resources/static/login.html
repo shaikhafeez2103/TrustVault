@@ -112,7 +112,7 @@
               <input type="checkbox" id="signin-remember" checked>
               <span>Remember me</span>
             </label>
-            <a href="javascript:void(0)" class="forgot-link" onclick="alert('Demo notice: Pre-seeded accounts are admin, owner, and viewer.')">Forgot password?</a>
+            <a href="javascript:void(0)" class="forgot-link" onclick="openForgotPasswordModal()">Forgot password?</a>
           </div>
 
           <button type="submit" class="btn-primary-auth">
@@ -231,7 +231,7 @@
           <div class="input-field-group">
             <div class="input-icon-wrapper">
               <svg class="leading-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-              <input type="password" id="signup-password" placeholder="Password" required>
+              <input type="password" id="signup-password" placeholder="Password" oninput="validatePasswordRequirements(this.value)" required>
               <button type="button" class="eye-toggle" onclick="togglePasswordVisibility('signup-password')">
                 <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
               </button>
@@ -252,10 +252,10 @@
           <div class="password-req-box">
             <span class="req-title">Password must contain:</span>
             <ul class="req-list">
-              <li id="req-len" class="valid"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> At least 8 characters</li>
-              <li id="req-upper" class="valid"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> One uppercase letter (A–Z)</li>
-              <li id="req-num" class="valid"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> One number (0–9)</li>
-              <li id="req-special" class="valid"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> One special character (e.g., @, #, $)</li>
+              <li id="req-len"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> At least 8 characters</li>
+              <li id="req-upper"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> One uppercase letter (A–Z)</li>
+              <li id="req-num"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> One number (0–9)</li>
+              <li id="req-special"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> One special character (e.g., @, #, $)</li>
             </ul>
           </div>
 
@@ -277,6 +277,29 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- FORGOT PASSWORD MODAL -->
+  <div id="forgot-password-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.72); backdrop-filter:blur(4px); z-index:9000; align-items:center; justify-content:center; padding:1rem;">
+    <div style="background:#ffffff; border-radius:18px; width:100%; max-width:440px; padding:1.75rem; box-shadow:0 25px 60px rgba(0,0,0,0.45);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+        <h3 style="font-size:1.2rem; font-weight:800; color:#0f172a;">Password Recovery</h3>
+        <button type="button" onclick="closeForgotPasswordModal()" style="background:transparent; border:none; font-size:1.4rem; color:#64748b; cursor:pointer;">&times;</button>
+      </div>
+      <p style="font-size:0.85rem; color:#64748b; margin-bottom:1rem;">Enter your registered email address or username to request a secure password recovery link. (Note: Pre-seeded evaluator demo accounts use the 1-Click buttons above.)</p>
+      <form id="forgot-password-form" onsubmit="handleForgotPassword(event)">
+        <div class="input-field-group">
+          <div class="input-icon-wrapper">
+            <svg class="leading-icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+            <input type="text" id="forgot-email" placeholder="Email Address or Username" required>
+          </div>
+        </div>
+        <div style="display:flex; gap:0.75rem; justify-content:flex-end; margin-top:1rem;">
+          <button type="button" onclick="closeForgotPasswordModal()" style="padding:0.65rem 1rem; border-radius:10px; border:1px solid #cbd5e1; background:#fff; color:#334155; font-weight:600; cursor:pointer;">Cancel</button>
+          <button type="submit" class="btn-primary-auth" style="width:auto; padding:0.65rem 1.25rem;">Send Recovery Link</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <div id="toast-container"></div>

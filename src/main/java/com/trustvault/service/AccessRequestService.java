@@ -8,6 +8,7 @@ import com.trustvault.entity.DocumentPermission;
 import com.trustvault.entity.User;
 import com.trustvault.enums.AccessStatus;
 import com.trustvault.enums.AuditAction;
+import com.trustvault.enums.RoleName;
 import com.trustvault.exception.ResourceNotFoundException;
 import com.trustvault.exception.UnauthorizedAccessException;
 import com.trustvault.repository.AccessRequestRepository;
@@ -56,6 +57,11 @@ public class AccessRequestService {
             throw new IllegalArgumentException("You are already the owner of this document.");
         }
 
+        List<AccessRequest> existingPending = requestRepository.findByDocumentAndRequesterAndStatus(doc, requester, AccessStatus.PENDING);
+        if (!existingPending.isEmpty()) {
+            throw new IllegalArgumentException("You already have a pending access request for this document.");
+        }
+
         AccessRequest req = new AccessRequest(
                 doc,
                 requester,
@@ -81,7 +87,9 @@ public class AccessRequestService {
     @Transactional(readOnly = true)
     public List<AccessRequestResponse> getPendingRequestsForOwner(Authentication authentication) {
         User owner = getCurrentUser(authentication);
-        List<AccessRequest> list = requestRepository.findByDocumentOwnerAndStatus(owner, AccessStatus.PENDING);
+        List<AccessRequest> list = owner.getRole() == RoleName.ROLE_ADMIN
+                ? requestRepository.findByStatus(AccessStatus.PENDING)
+                : requestRepository.findByDocumentOwnerAndStatus(owner, AccessStatus.PENDING);
         return list.stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
@@ -101,7 +109,7 @@ public class AccessRequestService {
         AccessRequest req = requestRepository.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Access request not found with ID: " + requestId));
 
-        if (!req.getDocument().getOwner().getId().equals(reviewer.getId())) {
+        if (!req.getDocument().getOwner().getId().equals(reviewer.getId()) && reviewer.getRole() != RoleName.ROLE_ADMIN) {
             auditService.logSecurityEvent(
                     reviewer.getUsername(),
                     AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT,
@@ -111,7 +119,11 @@ public class AccessRequestService {
                     clientIp,
                     false
             );
-            throw new UnauthorizedAccessException("Only the document owner can approve or reject access requests.");
+            throw new UnauthorizedAccessException("Only the document owner or administrator can approve or reject access requests.");
+        }
+
+        if (req.getStatus() != AccessStatus.PENDING) {
+            throw new IllegalArgumentException("This access request has already been reviewed.");
         }
 
         req.setReviewedBy(reviewer);
@@ -129,6 +141,7 @@ public class AccessRequestService {
                 perm.setPermissionType(req.getRequestedPermission());
                 perm.setGrantedBy(reviewer);
                 perm.setGrantedAt(LocalDateTime.now());
+                perm.setExpiresAt(null);
                 perm.setRevokedAt(null);
             } else {
                 perm = new DocumentPermission(

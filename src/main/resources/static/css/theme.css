@@ -1,23 +1,60 @@
 /* Theme definitions */
 :root[data-theme="light"] {
-  --bg-color: #f5f7fa;
-  --text-color: #212529;
-  --primary: #0d6efd; /* bootstrap primary */
+  --bg-color: #f0f4ff;
+  --bg-main: #f0f4ff;
+  --text-color: #0f172a;
+  --text-dark: #0f172a;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --primary: #2563eb;
   --card-bg: #ffffff;
-  --card-shadow: rgba(0,0,0,.1);
+  --card-shadow: rgba(0,0,0,.05);
 }
+
 :root[data-theme="dark"] {
-  --bg-color: #212529;
-  --text-color: #f8f9fa;
-  --primary: #0d6efd;
-  --card-bg: #2c2f33;
-  --card-shadow: rgba(0,0,0,.3);
+  --bg-color: #0f172a;
+  --bg-main: #0f172a;
+  --text-color: #f8fafc;
+  --text-dark: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-color: #334155;
+  --primary: #3b82f6;
+  --card-bg: #1e293b;
+  --card-shadow: rgba(0,0,0,.35);
 }
-body {
-  background: var(--bg-color);
-  color: var(--text-color);
+
+:root[data-theme="dark"] body {
+  background: var(--bg-main);
+  color: var(--text-dark);
 }
-.card {
-  background: var(--card-bg);
-  box-shadow: 0 2px 4px var(--card-shadow);
+
+:root[data-theme="dark"] .top-header,
+:root[data-theme="dark"] .welcome-banner-card,
+:root[data-theme="dark"] .stat-card,
+:root[data-theme="dark"] .panel-card,
+:root[data-theme="dark"] .modal-dialog {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+:root[data-theme="dark"] .header-search-bar input,
+:root[data-theme="dark"] .form-input,
+:root[data-theme="dark"] .notification-bell-btn {
+  background: #0f172a;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+:root[data-theme="dark"] .form-row label {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .recent-docs-table td {
+  border-bottom-color: #334155;
+  color: #f1f5f9;
+}
+
+:root[data-theme="dark"] .user-profile-widget:hover {
+  background: #334155;
 }

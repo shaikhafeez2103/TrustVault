@@ -547,16 +547,26 @@ body::before {
 
 .req-list li {
   font-size: 0.75rem;
-  color: #16a34a;
+  color: #64748b;
   display: flex;
   align-items: center;
   gap: 0.4rem;
   font-weight: 500;
+  transition: color 0.2s;
 }
 
 .req-list li svg {
   width: 14px;
   height: 14px;
+  fill: #94a3b8;
+  transition: fill 0.2s;
+}
+
+.req-list li.valid {
+  color: #16a34a;
+}
+
+.req-list li.valid svg {
   fill: #16a34a;
 }
 

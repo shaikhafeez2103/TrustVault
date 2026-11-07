@@ -54,4 +54,19 @@ public class AuthController {
         data.put("role", user.getRole().name());
         return ResponseEntity.ok(data);
     }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(@RequestBody Map<String, String> payload, HttpServletRequest request) {
+        String emailOrUsername = payload != null ? payload.getOrDefault("email", payload.get("username")) : null;
+        authService.handleForgotPassword(emailOrUsername, request);
+        return ResponseEntity.ok(Map.of(
+                "message", "If a matching account was found, password recovery instructions have been dispatched."
+        ));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, String>> logout(Authentication authentication, HttpServletRequest request) {
+        authService.handleLogout(authentication, request);
+        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
+    }
 }

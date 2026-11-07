@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -41,8 +42,6 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UnauthorizedAccessException.class)
     public ResponseEntity<Map<String, Object>> handleUnauthorizedAccess(UnauthorizedAccessException ex, HttpServletRequest request) {
-        logSecurityFailure(request, ex.getMessage());
-
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now());
         body.put("status", HttpStatus.FORBIDDEN.value());
@@ -50,6 +49,17 @@ public class GlobalExceptionHandler {
         body.put("message", ex.getMessage());
         body.put("path", request.getRequestURI());
         return new ResponseEntity<>(body, HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<Map<String, Object>> handleLockedException(LockedException ex, HttpServletRequest request) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.TOO_MANY_REQUESTS.value());
+        body.put("error", "Too Many Requests");
+        body.put("message", ex.getMessage());
+        body.put("path", request.getRequestURI());
+        return new ResponseEntity<>(body, HttpStatus.TOO_MANY_REQUESTS);
     }
 
     @ExceptionHandler({BadCredentialsException.class, AuthenticationException.class})
@@ -106,9 +116,14 @@ public class GlobalExceptionHandler {
         body.put("error", "Validation Failed");
 
         Map<String, String> fieldErrors = new HashMap<>();
+        String firstMessage = "Validation failed. Please check your input.";
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
             fieldErrors.put(error.getField(), error.getDefaultMessage());
+            if ("Validation failed. Please check your input.".equals(firstMessage) && error.getDefaultMessage() != null) {
+                firstMessage = error.getDefaultMessage();
+            }
         }
+        body.put("message", firstMessage);
         body.put("errors", fieldErrors);
         body.put("path", request.getRequestURI());
         return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);

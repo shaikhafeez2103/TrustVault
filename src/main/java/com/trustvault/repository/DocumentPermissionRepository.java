@@ -4,6 +4,7 @@ import com.trustvault.entity.Document;
 import com.trustvault.entity.DocumentPermission;
 import com.trustvault.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -21,4 +22,7 @@ public interface DocumentPermissionRepository extends JpaRepository<DocumentPerm
     Optional<DocumentPermission> findByDocumentAndUser(Document document, User user);
 
     List<DocumentPermission> findByUserAndActiveTrue(User user);
+
+    @Query("SELECT COUNT(p) FROM DocumentPermission p WHERE p.active = true AND p.document.deleted = false AND (p.expiresAt IS NULL OR p.expiresAt > CURRENT_TIMESTAMP)")
+    long countActiveValidPermissions();
 }

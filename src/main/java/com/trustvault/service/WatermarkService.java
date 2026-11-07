@@ -39,7 +39,7 @@ public class WatermarkService {
                         document, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
                     contentStream.setGraphicsStateParameters(graphicsState);
                     contentStream.setFont(font, 14);
-                    contentStream.setNonStrokingColor(180, 0, 0); // Subtle red security tint
+                    contentStream.setNonStrokingColor(0.7f, 0.0f, 0.0f); // Subtle red security tint (PDFBox 3.x uses 0.0f-1.0f floats)
 
                     // Diagonal placement across center
                     contentStream.beginText();

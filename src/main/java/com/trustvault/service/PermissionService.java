@@ -73,6 +73,10 @@ public class PermissionService {
             throw new IllegalArgumentException("Cannot grant permissions to the document owner.");
         }
 
+        if (request.getExpiresAt() != null && !request.getExpiresAt().isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Permission expiration date must be in the future.");
+        }
+
         // Check if an existing permission exists
         Optional<DocumentPermission> existingOpt = permissionRepository.findByDocumentAndUser(document, grantee);
         DocumentPermission permission;
@@ -123,6 +127,10 @@ public class PermissionService {
 
         Document document = permission.getDocument();
 
+        if (!document.getId().equals(documentId)) {
+            throw new IllegalArgumentException("Permission record #" + permissionId + " does not belong to document #" + documentId);
+        }
+
         // Only Document Owner (or Admin) can revoke permissions
         if (!document.getOwner().getId().equals(revoker.getId()) && revoker.getRole() != RoleName.ROLE_ADMIN) {
             auditService.logSecurityEvent(
@@ -154,7 +162,7 @@ public class PermissionService {
         );
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<PermissionResponse> getDocumentPermissions(Long documentId, Authentication authentication) {
         Document document = documentRepository.findById(documentId)
                 .filter(d -> !d.isDeleted())
@@ -162,6 +170,15 @@ public class PermissionService {
 
         User currentUser = getCurrentUser(authentication);
         if (!document.getOwner().getId().equals(currentUser.getId()) && currentUser.getRole() != RoleName.ROLE_ADMIN) {
+            auditService.logSecurityEvent(
+                    currentUser.getUsername(),
+                    AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT,
+                    "PERMISSION",
+                    documentId.toString(),
+                    "Unauthorized attempt to view permissions for document '" + document.getTitle() + "'",
+                    "UNKNOWN",
+                    false
+            );
             throw new UnauthorizedAccessException("Only the document owner or admin can view document permissions.");
         }
 

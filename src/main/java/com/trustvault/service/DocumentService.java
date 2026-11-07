@@ -79,13 +79,18 @@ public class DocumentService {
             throw new UnauthorizedAccessException("Only ADMIN or OWNER can upload documents.");
         }
 
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("Document title cannot be empty.");
+        }
+        String sanitizedTitle = title.trim();
+
         String checksum = fileStorageService.calculateChecksum(file);
         String storageFilename = fileStorageService.storeFile(file);
 
         Document doc = new Document(
-                title,
+                sanitizedTitle,
                 description,
-                category != null ? category : "General",
+                category != null && !category.isBlank() ? category.trim() : "General",
                 file.getOriginalFilename(),
                 storageFilename,
                 file.getContentType() != null ? file.getContentType() : "application/octet-stream",
@@ -222,11 +227,13 @@ public class DocumentService {
 
         boolean shouldWatermark = applyWatermark || currentUser.getRole() == RoleName.ROLE_VIEWER ||
                 !doc.getOwner().getId().equals(currentUser.getId());
+        boolean watermarkApplied = false;
 
         if (isPdf && shouldWatermark) {
             try (InputStream is = rawResource.getInputStream()) {
                 byte[] watermarkedBytes = watermarkService.applyWatermarkToPdf(is, currentUser.getUsername(), clientIp);
                 downloadResource = new ByteArrayResource(watermarkedBytes);
+                watermarkApplied = true;
             } catch (Exception e) {
                 // Fallback to raw if watermark fails
             }
@@ -237,7 +244,7 @@ public class DocumentService {
                 AuditAction.DOCUMENT_DOWNLOAD,
                 "DOCUMENT",
                 id.toString(),
-                "Downloaded file '" + doc.getOriginalFilename() + "' (watermarked: " + shouldWatermark + ")",
+                "Downloaded file '" + doc.getOriginalFilename() + "' (watermarked: " + watermarkApplied + ")",
                 clientIp,
                 true
         );
@@ -350,17 +357,75 @@ public class DocumentService {
         return mapToResponse(savedDoc, currentUser);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<DocumentVersion> getDocumentVersions(Long id, Authentication authentication) {
-        if (!documentSecurityService.canRead(authentication, id)) {
-            throw new UnauthorizedAccessException("Access denied. You cannot view version history for this document.");
-        }
-
         Document doc = documentRepository.findById(id)
                 .filter(d -> !d.isDeleted())
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
 
+        if (!documentSecurityService.canRead(authentication, id)) {
+            User currentUser = getCurrentUser(authentication);
+            auditService.logSecurityEvent(
+                    currentUser.getUsername(),
+                    AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT,
+                    "DOCUMENT",
+                    id.toString(),
+                    "Blocked unauthorized attempt to view version history for document: '" + doc.getTitle() + "'",
+                    "UNKNOWN",
+                    false
+            );
+            throw new UnauthorizedAccessException("Access denied. You cannot view version history for this document.");
+        }
+
         return versionRepository.findByDocumentOrderByVersionNumberDesc(doc);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentResponse> getDeletedDocuments(Authentication authentication) {
+        User currentUser = getCurrentUser(authentication);
+        List<Document> deletedDocs = currentUser.getRole() == RoleName.ROLE_ADMIN
+                ? documentRepository.findByDeletedTrue()
+                : documentRepository.findByOwnerAndDeletedTrue(currentUser);
+        return deletedDocs.stream().map(d -> mapToResponse(d, currentUser)).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public DocumentResponse restoreDocument(Long id, Authentication authentication, HttpServletRequest request) {
+        String clientIp = request != null ? request.getRemoteAddr() : "UNKNOWN";
+        User currentUser = getCurrentUser(authentication);
+
+        Document doc = documentRepository.findById(id)
+                .filter(Document::isDeleted)
+                .orElseThrow(() -> new ResourceNotFoundException("Deleted document not found with ID: " + id));
+
+        if (!doc.getOwner().getId().equals(currentUser.getId()) && currentUser.getRole() != RoleName.ROLE_ADMIN) {
+            auditService.logSecurityEvent(
+                    currentUser.getUsername(),
+                    AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT,
+                    "DOCUMENT",
+                    id.toString(),
+                    "Blocked unauthorized restore attempt on document: '" + doc.getTitle() + "'",
+                    clientIp,
+                    false
+            );
+            throw new UnauthorizedAccessException("Access denied. Only the document owner or administrator can restore this document.");
+        }
+
+        doc.setDeleted(false);
+        doc.setUpdatedAt(LocalDateTime.now());
+        Document saved = documentRepository.save(doc);
+
+        auditService.logSecurityEvent(
+                currentUser.getUsername(),
+                AuditAction.DOCUMENT_EDIT,
+                "DOCUMENT",
+                id.toString(),
+                "Restored soft-deleted document: '" + doc.getTitle() + "'",
+                clientIp,
+                true
+        );
+
+        return mapToResponse(saved, currentUser);
     }
 
     @Transactional

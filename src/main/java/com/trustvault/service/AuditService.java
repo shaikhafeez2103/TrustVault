@@ -12,7 +12,7 @@ import com.trustvault.repository.DocumentRepository;
 import com.trustvault.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -37,7 +37,7 @@ public class AuditService {
     @Autowired
     private UserRepository userRepository;
 
-    @Transactional(isolation = Isolation.SERIALIZABLE)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public synchronized AuditLog logSecurityEvent(String username, AuditAction action, String resourceType,
                                                   String resourceId, String details, String ipAddress,
                                                   boolean success) {
@@ -117,7 +117,7 @@ public class AuditService {
         stats.setTotalAuditLogs(auditLogRepository.count());
         stats.setFailedLogins24h(auditLogRepository.countByActionAndTimestampAfter(AuditAction.AUTH_LOGIN_FAILED, past24h));
         stats.setUnauthorizedAccessAttempts24h(auditLogRepository.countByActionAndTimestampAfter(AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT, past24h));
-        stats.setActivePermissions(permissionRepository.count());
+        stats.setActivePermissions(permissionRepository.countActiveValidPermissions());
 
         TamperCheckResult integrity = verifyAuditTrailIntegrity();
         stats.setTamperDetected(!integrity.isValid());
