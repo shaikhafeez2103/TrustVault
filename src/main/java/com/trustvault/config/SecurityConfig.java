@@ -62,7 +62,7 @@ public class SecurityConfig {
                 })
             )
             .authorizeHttpRequests(auth -> auth
-                // Static web resources
+                // Static web resources & Health check
                 .requestMatchers(
                     "/",
                     "/index.html",
@@ -71,7 +71,8 @@ public class SecurityConfig {
                     "/css/**",
                     "/js/**",
                     "/assets/**",
-                    "/favicon.ico"
+                    "/favicon.ico",
+                    "/actuator/**"
                 ).permitAll()
 
                 // Public Auth & Google OAuth 2.0 Endpoints (except /api/auth/me which requires authentication)
