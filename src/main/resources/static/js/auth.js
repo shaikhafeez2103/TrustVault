@@ -1,4 +1,7 @@
-function toggleAuthContainers(target) {
+function toggleAuthContainers(target, event) {
+  if (event && typeof event.preventDefault === 'function') {
+    event.preventDefault();
+  }
   const signin = document.getElementById('signin-container');
   const signup = document.getElementById('signup-container');
 
@@ -9,9 +12,13 @@ function toggleAuthContainers(target) {
     signup.style.display = 'none';
     signin.style.display = 'flex';
   }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function togglePasswordVisibility(fieldId) {
+function togglePasswordVisibility(fieldId, event) {
+  if (event && typeof event.preventDefault === 'function') {
+    event.preventDefault();
+  }
   const input = document.getElementById(fieldId);
   if (!input) return;
   if (input.type === 'password') {
@@ -196,7 +203,10 @@ async function handleSignUp(e) {
   }
 }
 
-function openForgotPasswordModal() {
+function openForgotPasswordModal(event) {
+  if (event && typeof event.preventDefault === 'function') {
+    event.preventDefault();
+  }
   const modal = document.getElementById('forgot-password-modal');
   if (modal) {
     const signinEmail = document.getElementById('signin-email')?.value || '';
@@ -206,7 +216,10 @@ function openForgotPasswordModal() {
   }
 }
 
-function closeForgotPasswordModal() {
+function closeForgotPasswordModal(event) {
+  if (event && typeof event.preventDefault === 'function') {
+    event.preventDefault();
+  }
   const modal = document.getElementById('forgot-password-modal');
   if (modal) modal.style.display = 'none';
 }
@@ -251,11 +264,6 @@ function showToast(message, type = 'info') {
 }
 
 async function handleOAuthCallbackOnLoad() {
-  const emailInput = document.getElementById('signin-email');
-  const passInput = document.getElementById('signin-password');
-  if (emailInput) emailInput.value = '';
-  if (passInput) passInput.value = '';
-
   const params = new URLSearchParams(window.location.search);
   const oauthCode = params.get('oauth_code');
   const oauthError = params.get('oauth_error');
@@ -310,35 +318,17 @@ async function handleOAuthCallbackOnLoad() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   handleOAuthCallbackOnLoad();
 
   if (window.location.hash === '#signup' || window.location.search.includes('mode=signup')) {
     toggleAuthContainers('signup');
   }
 
-  // If user just logged out, remain on login page
-  if (sessionStorage.getItem('trustvault_logged_out')) {
-    sessionStorage.removeItem('trustvault_logged_out');
-    return;
-  }
-
-  // Check if an active authenticated session already exists
-  const existingToken = localStorage.getItem('trustvault_token') || sessionStorage.getItem('trustvault_token');
-  if (existingToken) {
-    try {
-      const res = await fetch('/api/auth/me', {
-        headers: { 'Authorization': `Bearer ${existingToken}` }
-      });
-      if (res.ok) {
-        window.location.replace('dashboard.html');
-        return;
-      }
-    } catch (e) {}
-    localStorage.removeItem('trustvault_token');
-    localStorage.removeItem('trustvault_user');
-    sessionStorage.removeItem('trustvault_token');
-    sessionStorage.removeItem('trustvault_user');
-    document.cookie = 'trustvault_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+  const signupUsername = document.getElementById('signup-username');
+  if (signupUsername) {
+    signupUsername.addEventListener('input', () => {
+      signupUsername.dataset.userEdited = 'true';
+    });
   }
 });

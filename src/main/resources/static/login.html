@@ -93,7 +93,7 @@
             <div class="input-icon-wrapper">
               <svg class="leading-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
               <input type="password" id="signin-password" placeholder="Password" required>
-              <button type="button" class="eye-toggle" onclick="togglePasswordVisibility('signin-password')">
+              <button type="button" class="eye-toggle" onclick="togglePasswordVisibility('signin-password', event)">
                 <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
               </button>
             </div>
@@ -104,7 +104,7 @@
               <input type="checkbox" id="signin-remember" checked>
               <span>Remember me</span>
             </label>
-            <a href="javascript:void(0)" class="forgot-link" onclick="openForgotPasswordModal()">Forgot password?</a>
+            <a href="javascript:void(0)" class="forgot-link" onclick="openForgotPasswordModal(event)">Forgot password?</a>
           </div>
 
           <button type="submit" class="btn-primary-auth">
@@ -131,7 +131,7 @@
           </div>
 
           <div class="bottom-switch-link">
-            Don't have an account? <a href="javascript:void(0)" onclick="toggleAuthContainers('signup')">Create Account</a>
+            Don't have an account? <a href="javascript:void(0)" onclick="toggleAuthContainers('signup', event)">Create Account</a>
           </div>
         </form>
       </div>
@@ -245,7 +245,7 @@
             <div class="input-icon-wrapper">
               <svg class="leading-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
               <input type="password" id="signup-password" placeholder="Password" oninput="validatePasswordRequirements(this.value)" required>
-              <button type="button" class="eye-toggle" onclick="togglePasswordVisibility('signup-password')">
+              <button type="button" class="eye-toggle" onclick="togglePasswordVisibility('signup-password', event)">
                 <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
               </button>
             </div>
@@ -255,7 +255,7 @@
             <div class="input-icon-wrapper">
               <svg class="leading-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
               <input type="password" id="signup-confirm-password" placeholder="Confirm Password" required>
-              <button type="button" class="eye-toggle" onclick="togglePasswordVisibility('signup-confirm-password')">
+              <button type="button" class="eye-toggle" onclick="togglePasswordVisibility('signup-confirm-password', event)">
                 <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
               </button>
             </div>
@@ -275,7 +275,7 @@
           <div class="terms-row">
             <label class="terms-checkbox">
               <input type="checkbox" id="signup-terms" required checked>
-              <span>I agree to the <a href="javascript:void(0)">Terms of Service</a> and <a href="javascript:void(0)">Privacy Policy</a></span>
+              <span>I agree to the <a href="javascript:void(0)" onclick="if(event)event.preventDefault();">Terms of Service</a> and <a href="javascript:void(0)" onclick="if(event)event.preventDefault();">Privacy Policy</a></span>
             </label>
           </div>
 
@@ -295,7 +295,7 @@
           </div>
 
           <div class="bottom-switch-link">
-            Already have an account? <a href="javascript:void(0)" onclick="toggleAuthContainers('signin')">Sign In</a>
+            Already have an account? <a href="javascript:void(0)" onclick="toggleAuthContainers('signin', event)">Sign In</a>
           </div>
         </form>
       </div>
@@ -308,7 +308,7 @@
     <div style="background:#ffffff; border-radius:18px; width:100%; max-width:440px; padding:1.75rem; box-shadow:0 25px 60px rgba(0,0,0,0.45);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
         <h3 style="font-size:1.2rem; font-weight:800; color:#0f172a;">Password Recovery</h3>
-        <button type="button" onclick="closeForgotPasswordModal()" style="background:transparent; border:none; font-size:1.4rem; color:#64748b; cursor:pointer;">&times;</button>
+        <button type="button" onclick="closeForgotPasswordModal(event)" style="background:transparent; border:none; font-size:1.4rem; color:#64748b; cursor:pointer;">&times;</button>
       </div>
       <p style="font-size:0.85rem; color:#64748b; margin-bottom:1rem;">Enter your registered email address or username to request a secure password recovery link.</p>
       <form id="forgot-password-form" onsubmit="handleForgotPassword(event)">
@@ -319,7 +319,7 @@
           </div>
         </div>
         <div style="display:flex; gap:0.75rem; justify-content:flex-end; margin-top:1rem;">
-          <button type="button" onclick="closeForgotPasswordModal()" style="padding:0.65rem 1rem; border-radius:10px; border:1px solid #cbd5e1; background:#fff; color:#334155; font-weight:600; cursor:pointer;">Cancel</button>
+          <button type="button" onclick="closeForgotPasswordModal(event)" style="padding:0.65rem 1rem; border-radius:10px; border:1px solid #cbd5e1; background:#fff; color:#334155; font-weight:600; cursor:pointer;">Cancel</button>
           <button type="submit" class="btn-primary-auth" style="width:auto; padding:0.65rem 1.25rem;">Send Recovery Link</button>
         </div>
       </form>
