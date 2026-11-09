@@ -54,6 +54,48 @@ public class AuthControllerIntegrationTest {
     }
 
     @Test
+    public void testSuccessfulOwnerRegistration() throws Exception {
+        RegisterRequest register = new RegisterRequest();
+        register.setUsername("legitimateOwner");
+        register.setEmail("legit_owner@example.com");
+        register.setPassword("Secret123!");
+        register.setFullName("Legitimate Owner");
+        register.setRole(RoleName.ROLE_OWNER);
+
+        MvcResult result = mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(register)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        AuthResponse response = objectMapper.readValue(result.getResponse().getContentAsString(), AuthResponse.class);
+        assertThat(response.getUsername()).isEqualTo("legitimateOwner");
+        assertThat(response.getRole()).isEqualTo(RoleName.ROLE_OWNER.name());
+        assertThat(response.getJwtToken()).isNotBlank();
+    }
+
+    @Test
+    public void testDuplicateRegistrationFails() throws Exception {
+        RegisterRequest register = new RegisterRequest();
+        register.setUsername("dupUser");
+        register.setEmail("dup@example.com");
+        register.setPassword("Secret123!");
+        register.setFullName("Dup User");
+        register.setRole(RoleName.ROLE_OWNER);
+
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(register)))
+                .andExpect(status().isOk());
+
+        // Attempt to register again with same username
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(register)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     public void testLoginSuccessAndFailure() throws Exception {
         // First register a user
         RegisterRequest register = new RegisterRequest();

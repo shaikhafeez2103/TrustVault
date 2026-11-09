@@ -87,32 +87,39 @@ public class DocumentService {
         String checksum = fileStorageService.calculateChecksum(file);
         String storageFilename = fileStorageService.storeFile(file);
 
-        Document doc = new Document(
-                sanitizedTitle,
-                description,
-                category != null && !category.isBlank() ? category.trim() : "General",
-                file.getOriginalFilename(),
-                storageFilename,
-                file.getContentType() != null ? file.getContentType() : "application/octet-stream",
-                file.getSize(),
-                checksum,
-                user
-        );
+        Document savedDoc;
+        try {
+            Document doc = new Document(
+                    sanitizedTitle,
+                    description,
+                    category != null && !category.isBlank() ? category.trim() : "General",
+                    file.getOriginalFilename(),
+                    storageFilename,
+                    file.getContentType() != null ? file.getContentType() : "application/octet-stream",
+                    file.getSize(),
+                    checksum,
+                    user
+            );
 
-        Document savedDoc = documentRepository.save(doc);
+            savedDoc = documentRepository.save(doc);
 
-        // Record initial version 1
-        DocumentVersion version = new DocumentVersion(
-                savedDoc,
-                1,
-                storageFilename,
-                file.getOriginalFilename(),
-                file.getSize(),
-                checksum,
-                "Initial document upload",
-                user
-        );
-        versionRepository.save(version);
+            // Record initial version 1
+            DocumentVersion version = new DocumentVersion(
+                    savedDoc,
+                    1,
+                    storageFilename,
+                    file.getOriginalFilename(),
+                    file.getSize(),
+                    checksum,
+                    "Initial document upload",
+                    user
+            );
+            versionRepository.save(version);
+        } catch (Exception ex) {
+            // Rollback stored physical file to prevent orphaned storage
+            fileStorageService.deleteFileIfExists(storageFilename);
+            throw ex;
+        }
 
         auditService.logSecurityEvent(
                 user.getUsername(),
@@ -321,28 +328,35 @@ public class DocumentService {
         String checksum = fileStorageService.calculateChecksum(file);
         String storageFilename = fileStorageService.storeFile(file);
 
+        Document savedDoc;
         int newVersionNumber = doc.getCurrentVersion() + 1;
-        doc.setCurrentVersion(newVersionNumber);
-        doc.setStoragePath(storageFilename);
-        doc.setOriginalFilename(file.getOriginalFilename());
-        doc.setFileSize(file.getSize());
-        doc.setContentType(file.getContentType());
-        doc.setFileChecksum(checksum);
-        doc.setUpdatedAt(LocalDateTime.now());
+        try {
+            doc.setCurrentVersion(newVersionNumber);
+            doc.setStoragePath(storageFilename);
+            doc.setOriginalFilename(file.getOriginalFilename());
+            doc.setFileSize(file.getSize());
+            doc.setContentType(file.getContentType());
+            doc.setFileChecksum(checksum);
+            doc.setUpdatedAt(LocalDateTime.now());
 
-        Document savedDoc = documentRepository.save(doc);
+            savedDoc = documentRepository.save(doc);
 
-        DocumentVersion version = new DocumentVersion(
-                savedDoc,
-                newVersionNumber,
-                storageFilename,
-                file.getOriginalFilename(),
-                file.getSize(),
-                checksum,
-                changeSummary != null ? changeSummary : "Uploaded version " + newVersionNumber,
-                currentUser
-        );
-        versionRepository.save(version);
+            DocumentVersion version = new DocumentVersion(
+                    savedDoc,
+                    newVersionNumber,
+                    storageFilename,
+                    file.getOriginalFilename(),
+                    file.getSize(),
+                    checksum,
+                    changeSummary != null ? changeSummary : "Uploaded version " + newVersionNumber,
+                    currentUser
+            );
+            versionRepository.save(version);
+        } catch (Exception ex) {
+            // Clean up stored file to prevent orphaned storage
+            fileStorageService.deleteFileIfExists(storageFilename);
+            throw ex;
+        }
 
         auditService.logSecurityEvent(
                 currentUser.getUsername(),

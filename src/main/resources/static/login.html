@@ -111,6 +111,19 @@
             <span>&rarr; Sign In</span>
           </button>
 
+          <!-- 1-Click Evaluator Demo Accounts -->
+          <div class="demo-accounts-bar" style="margin-top: 1rem; padding: 0.75rem; background: rgba(37,99,235,0.06); border: 1px dashed rgba(37,99,235,0.3); border-radius: 8px;">
+            <span style="display:block; font-size:0.75rem; font-weight:700; color:#2563eb; margin-bottom:0.4rem; text-transform:uppercase; letter-spacing:0.5px;">⚡ Evaluator 1-Click Demo Logins:</span>
+            <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+              <button type="button" class="btn btn-sm" style="flex:1; font-size:0.78rem; padding:0.35rem 0.5rem; background:#1e293b; color:#fff; border:none; border-radius:6px; cursor:pointer;" onclick="quickLoginDemo('admin')">🛡️ Admin</button>
+              <button type="button" class="btn btn-sm" style="flex:1; font-size:0.78rem; padding:0.35rem 0.5rem; background:#2563eb; color:#fff; border:none; border-radius:6px; cursor:pointer;" onclick="quickLoginDemo('owner')">📂 Owner</button>
+              <button type="button" class="btn btn-sm" style="flex:1; font-size:0.78rem; padding:0.35rem 0.5rem; background:#059669; color:#fff; border:none; border-radius:6px; cursor:pointer;" onclick="quickLoginDemo('viewer')">👁️ Viewer</button>
+            </div>
+            <div style="font-size:0.72rem; color:#64748b; margin-top:0.45rem; text-align:center; line-height: 1.3;">
+              Auto-fills credentials: <code>admin</code> (Admin@2026Test) &bull; <code>owner</code> (Owner@123) &bull; <code>viewer</code> (Viewer@123)
+            </div>
+          </div>
+
           <div class="divider-line">
             <span>or continue with</span>
           </div>
@@ -211,8 +224,25 @@
 
           <div class="input-field-group">
             <div class="input-icon-wrapper">
+              <svg class="leading-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+              <input type="text" id="signup-username" placeholder="Username (3–50 chars)" minlength="3" maxlength="50" required>
+            </div>
+          </div>
+
+          <div class="input-field-group">
+            <div class="input-icon-wrapper">
               <svg class="leading-icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-              <input type="email" id="signup-email" placeholder="Email Address" required>
+              <input type="email" id="signup-email" placeholder="Email Address" oninput="autoFillUsername(this.value)" required>
+            </div>
+          </div>
+
+          <div class="input-field-group">
+            <div class="input-icon-wrapper">
+              <svg class="leading-icon" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+              <select id="signup-role" class="form-input" style="padding-left: 2.75rem; width:100%; height:46px; border-radius:10px; border:1px solid #cbd5e1; font-family:inherit; font-size:0.9rem; background:#fff; color:#1e293b;" required>
+                <option value="ROLE_OWNER" selected>Document Owner (Can upload, manage &amp; share files)</option>
+                <option value="ROLE_VIEWER">Document Viewer (View &amp; request access only)</option>
+              </select>
             </div>
           </div>
 

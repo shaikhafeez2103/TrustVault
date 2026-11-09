@@ -268,19 +268,29 @@ public class GoogleOAuthService {
                         targetUser.getId().toString(), "Rejected Google OAuth login for disabled user", clientIp, false);
                 throw new SecurityException("account_disabled");
             }
+            if ("shaikhafeez2103@gmail.com".equalsIgnoreCase(targetUser.getEmail())
+                    || "abdul_shaik_21".equalsIgnoreCase(targetUser.getUsername())) {
+                if (targetUser.getRole() != RoleName.ROLE_OWNER) {
+                    targetUser.setRole(RoleName.ROLE_OWNER);
+                    targetUser = userRepository.save(targetUser);
+                }
+            }
         } else {
             // 2. Check if an account with this email already exists
             Optional<User> existingByEmail = userRepository.findByEmail(normalizedEmail);
             if (existingByEmail.isPresent()) {
                 User existing = existingByEmail.get();
 
+                boolean isDemoOwnerAccount = "shaikhafeez2103@gmail.com".equalsIgnoreCase(normalizedEmail)
+                        || "abdul_shaik_21".equalsIgnoreCase(existing.getUsername());
+
                 // Account takeover defense:
                 // Never auto-link Google OAuth to Admin/Owner or built-in system accounts, or accounts linked to a different OAuth subject
-                if (existing.getRole() == RoleName.ROLE_ADMIN
+                if (!isDemoOwnerAccount && (existing.getRole() == RoleName.ROLE_ADMIN
                         || existing.getRole() == RoleName.ROLE_OWNER
                         || PROTECTED_SYSTEM_USERS.contains(existing.getUsername().toLowerCase())
                         || PROTECTED_SYSTEM_USERS.contains(normalizedEmail)
-                        || (existing.getOauthProviderId() != null && !existing.getOauthProviderId().equals(sub))) {
+                        || (existing.getOauthProviderId() != null && !existing.getOauthProviderId().equals(sub)))) {
                     auditService.logSecurityEvent(
                             existing.getUsername(),
                             AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT,
@@ -297,12 +307,16 @@ public class GoogleOAuthService {
                     throw new SecurityException("account_disabled");
                 }
 
-                // Safe linking for verified least-privileged viewer account
+                if (isDemoOwnerAccount) {
+                    existing.setRole(RoleName.ROLE_OWNER);
+                }
+
+                // Safe linking for verified least-privileged viewer or authorized demo owner account
                 existing.setOauthProvider("GOOGLE");
                 existing.setOauthProviderId(sub);
                 targetUser = userRepository.save(existing);
             } else {
-                // 3. Create new least-privileged ROLE_VIEWER account
+                // 3. Create new account (ROLE_OWNER for demo owner, least-privileged ROLE_VIEWER for public users)
                 String baseUsername = normalizedEmail.split("@")[0].replaceAll("[^a-z0-9_]", "");
                 if (baseUsername.length() < 3) {
                     baseUsername = "guser_" + baseUsername;
@@ -316,15 +330,23 @@ public class GoogleOAuthService {
                     uniqueUsername = baseUsername + "_" + suffix;
                 }
 
-                String displayName = (fullName != null && !fullName.isBlank()) ? fullName.trim() : uniqueUsername;
+                boolean isDemoOwnerAccount = "shaikhafeez2103@gmail.com".equalsIgnoreCase(normalizedEmail)
+                        || "abdul_shaik_21".equalsIgnoreCase(baseUsername);
+
+                RoleName roleToAssign = isDemoOwnerAccount ? RoleName.ROLE_OWNER : RoleName.ROLE_VIEWER;
+                String assignedUsername = isDemoOwnerAccount && !userRepository.existsByUsername("abdul_shaik_21")
+                        ? "abdul_shaik_21"
+                        : uniqueUsername;
+
+                String displayName = (fullName != null && !fullName.isBlank()) ? fullName.trim() : assignedUsername;
                 String randomPassword = UUID.randomUUID().toString() + "Aa1!";
 
                 User newUser = new User(
-                        uniqueUsername,
+                        assignedUsername,
                         normalizedEmail,
                         passwordEncoder.encode(randomPassword),
                         displayName,
-                        RoleName.ROLE_VIEWER // Always least-privileged role for new Google accounts
+                        roleToAssign
                 );
                 newUser.setOauthProvider("GOOGLE");
                 newUser.setOauthProviderId(sub);
@@ -335,7 +357,7 @@ public class GoogleOAuthService {
                         AuditAction.AUTH_REGISTER,
                         "USER",
                         targetUser.getId().toString(),
-                        "Provisioned new Google OAuth 2.0 account with least-privileged role: " + targetUser.getRole().name(),
+                        "Provisioned new Google OAuth 2.0 account with role: " + targetUser.getRole().name(),
                         clientIp,
                         true
                 );

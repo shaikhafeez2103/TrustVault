@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
     role VARCHAR(30) NOT NULL,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    oauth_provider VARCHAR(30) DEFAULT 'LOCAL',
+    oauth_provider_id VARCHAR(120) NULL,
     INDEX idx_user_username (username),
     INDEX idx_user_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

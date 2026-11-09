@@ -699,4 +699,53 @@ public class TrustVaultSecurityTests {
         Map<?, ?> meBody = objectMapper.readValue(meRes.getResponse().getContentAsString(), Map.class);
         assertEquals("ROLE_ADMIN", meBody.get("role"));
     }
+
+    @Test
+    @DisplayName("SECURITY-20: Prevent self-approval on access requests")
+    public void testSelfApprovalBlockedOnAccessRequest() throws Exception {
+        // Admin submits an access request for owner's confidential document
+        MvcResult reqRes = mockMvc.perform(post("/api/requests")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "documentId", confidentialDoc.getId(),
+                                "requestedPermission", "READ",
+                                "reason", "Admin needs access"
+                        ))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Map<?, ?> reqBody = objectMapper.readValue(reqRes.getResponse().getContentAsString(), Map.class);
+        Number reqId = (Number) reqBody.get("id");
+
+        // Admin attempts to approve their OWN access request -> Must be rejected with 403 Forbidden
+        mockMvc.perform(post("/api/requests/" + reqId + "/review?approve=true")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("SECURITY-21: Block redundant access request when user already holds active permission")
+    public void testRedundantAccessRequestBlocked() throws Exception {
+        // Grant viewer READ permission first
+        mockMvc.perform(post("/api/permissions/documents/" + confidentialDoc.getId() + "/grant")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "username", "viewer",
+                                "permissionType", "READ"
+                        ))))
+                .andExpect(status().isOk());
+
+        // Viewer attempts to submit access request for READ on the same document -> Blocked with 400 Bad Request
+        mockMvc.perform(post("/api/requests")
+                        .header("Authorization", "Bearer " + viewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "documentId", confidentialDoc.getId(),
+                                "requestedPermission", "READ",
+                                "reason", "Duplicate request"
+                        ))))
+                .andExpect(status().isBadRequest());
+    }
 }

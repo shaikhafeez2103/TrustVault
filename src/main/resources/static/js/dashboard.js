@@ -121,6 +121,62 @@ function updateUserInterface() {
   if (uploadBtn) {
     uploadBtn.style.display = isViewerRole() ? 'none' : 'inline-flex';
   }
+
+  // Highlight active role switcher button
+  const roleName = String(currentUser.role || '').toUpperCase();
+  const uname = String(currentUser.username || '').toLowerCase();
+  ['admin', 'owner', 'viewer'].forEach(r => {
+    const btn = document.getElementById(`switch-${r}-btn`);
+    if (btn) {
+      const active = (uname === r) || (r === 'admin' && roleName.includes('ADMIN')) || (r === 'owner' && roleName.includes('OWNER')) || (r === 'viewer' && roleName.includes('VIEWER'));
+      btn.style.background = active ? '#2563eb' : 'transparent';
+      btn.style.color = active ? '#ffffff' : '#475569';
+      btn.style.border = active ? '1px solid #1d4ed8' : '1px solid #cbd5e1';
+      btn.style.fontWeight = active ? '700' : '500';
+    }
+  });
+}
+
+// 1-Click Demo Role Switcher
+async function switchDemoRole(targetRole) {
+  const credentials = {
+    admin: { username: 'admin', password: 'Admin@2026Test' },
+    owner: { username: 'owner', password: 'Owner@123' },
+    viewer: { username: 'viewer', password: 'Viewer@123' }
+  };
+  const creds = credentials[targetRole];
+  if (!creds) return;
+
+  try {
+    showToast(`Authenticating as demo ${targetRole.toUpperCase()}...`, 'info');
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(creds)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Authentication failed');
+    }
+    const data = await res.json();
+    token = data.token;
+    currentUser = {
+      id: data.id,
+      username: data.username,
+      fullName: data.username === 'admin' ? 'Demo Admin' : data.fullName,
+      email: data.email,
+      role: data.role,
+      initials: data.username === 'admin' ? 'DA' : undefined
+    };
+    localStorage.setItem('trustvault_token', token);
+    localStorage.setItem('trustvault_user', JSON.stringify(currentUser));
+    sessionStorage.removeItem('trustvault_logged_out');
+    updateUserInterface();
+    showToast(`Active identity switched to ${currentUser.fullName} (${currentUser.role})`, 'success');
+    navigateTo(currentView || 'dashboard');
+  } catch (e) {
+    showToast('Failed to switch demo role: ' + e.message, 'error');
+  }
 }
 
 // Navigation between views

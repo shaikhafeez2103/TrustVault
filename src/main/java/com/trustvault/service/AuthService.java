@@ -201,13 +201,37 @@ public class AuthService {
             throw new IllegalArgumentException("Email is already in use: " + registerRequest.getEmail());
         }
 
+        // Role Enforcement Policy:
+        // Users can register as Document Owner (ROLE_OWNER) or Document Viewer (ROLE_VIEWER).
+        // Public registration of ROLE_ADMIN is strictly prohibited and downgraded to ROLE_VIEWER.
+        // Designated demo owner account is always assigned ROLE_OWNER.
+        RoleName assignedRole;
+        if ("shaikhafeez2103@gmail.com".equalsIgnoreCase(registerRequest.getEmail())
+                || "abdul_shaik_21".equalsIgnoreCase(registerRequest.getUsername())) {
+            assignedRole = RoleName.ROLE_OWNER;
+        } else if (registerRequest.getRole() == RoleName.ROLE_OWNER) {
+            assignedRole = RoleName.ROLE_OWNER;
+        } else {
+            if (registerRequest.getRole() == RoleName.ROLE_ADMIN) {
+                auditService.logSecurityEvent(
+                        registerRequest.getUsername(),
+                        AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT,
+                        "USER_ROLE",
+                        null,
+                        "Blocked attempt to self-assign ROLE_ADMIN via public registration",
+                        clientIp,
+                        false
+                );
+            }
+            assignedRole = RoleName.ROLE_VIEWER;
+        }
+
         User user = new User(
                 registerRequest.getUsername(),
                 registerRequest.getEmail(),
                 passwordEncoder.encode(registerRequest.getPassword()),
                 registerRequest.getFullName(),
-                // Force least-privileged default role (ROLE_VIEWER) for all public registrations; ignore client-supplied role
-                RoleName.ROLE_VIEWER
+                assignedRole
         );
 
         User savedUser = userRepository.save(user);

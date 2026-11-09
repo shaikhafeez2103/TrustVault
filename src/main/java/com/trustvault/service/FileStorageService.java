@@ -110,6 +110,19 @@ public class FileStorageService {
         return this.storageLocation.resolve(storageFilename).normalize();
     }
 
+    public boolean deleteFileIfExists(String storageFilename) {
+        if (storageFilename == null || storageFilename.isBlank()) {
+            return false;
+        }
+        try {
+            Path filePath = this.storageLocation.resolve(storageFilename).normalize();
+            if (filePath.startsWith(this.storageLocation)) {
+                return Files.deleteIfExists(filePath);
+            }
+        } catch (IOException ignored) {}
+        return false;
+    }
+
     public String calculateChecksum(MultipartFile file) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

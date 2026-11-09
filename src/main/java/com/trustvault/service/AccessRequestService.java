@@ -57,6 +57,14 @@ public class AccessRequestService {
             throw new IllegalArgumentException("You are already the owner of this document.");
         }
 
+        // Check if user already holds active, valid permission for this document
+        Optional<DocumentPermission> currentPerm = permissionRepository.findByDocumentAndUserAndActiveTrue(doc, requester);
+        if (currentPerm.isPresent() && currentPerm.get().isCurrentlyValid()) {
+            if (currentPerm.get().getPermissionType() == dto.getRequestedPermission()) {
+                throw new IllegalArgumentException("You already hold active " + dto.getRequestedPermission() + " permission for this document.");
+            }
+        }
+
         List<AccessRequest> existingPending = requestRepository.findByDocumentAndRequesterAndStatus(doc, requester, AccessStatus.PENDING);
         if (!existingPending.isEmpty()) {
             throw new IllegalArgumentException("You already have a pending access request for this document.");
@@ -108,6 +116,20 @@ public class AccessRequestService {
 
         AccessRequest req = requestRepository.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Access request not found with ID: " + requestId));
+
+        // Self-Approval Defense: A user can never approve their own request
+        if (req.getRequester().getId().equals(reviewer.getId())) {
+            auditService.logSecurityEvent(
+                    reviewer.getUsername(),
+                    AuditAction.UNAUTHORIZED_ACCESS_ATTEMPT,
+                    "ACCESS_REQUEST",
+                    requestId.toString(),
+                    "Attempt to self-approve access request blocked",
+                    clientIp,
+                    false
+            );
+            throw new UnauthorizedAccessException("Users cannot approve or review their own access requests.");
+        }
 
         if (!req.getDocument().getOwner().getId().equals(reviewer.getId()) && reviewer.getRole() != RoleName.ROLE_ADMIN) {
             auditService.logSecurityEvent(

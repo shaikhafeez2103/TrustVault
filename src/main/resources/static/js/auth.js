@@ -104,10 +104,41 @@ async function handleSignIn(e) {
   }
 }
 
+function quickLoginDemo(role) {
+  const credentials = {
+    admin: { user: 'admin', pass: 'Admin@2026Test' },
+    owner: { user: 'owner', pass: 'Owner@123' },
+    viewer: { user: 'viewer', pass: 'Viewer@123' }
+  };
+  const cred = credentials[role];
+  if (cred) {
+    const userField = document.getElementById('signin-email');
+    const passField = document.getElementById('signin-password');
+    if (userField && passField) {
+      userField.value = cred.user;
+      passField.value = cred.pass;
+      const form = document.getElementById('signin-form');
+      if (form) form.dispatchEvent(new Event('submit', { cancelable: true }));
+    }
+  }
+}
+
+function autoFillUsername(email) {
+  const usernameInput = document.getElementById('signup-username');
+  if (usernameInput && !usernameInput.dataset.userEdited) {
+    let clean = (email || '').split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (clean.length >= 3) {
+      usernameInput.value = clean.substring(0, 30);
+    }
+  }
+}
+
 async function handleSignUp(e) {
   e.preventDefault();
   const fullName = document.getElementById('signup-fullname').value.trim();
   const email = document.getElementById('signup-email').value.trim();
+  let username = (document.getElementById('signup-username')?.value || '').trim();
+  const role = document.getElementById('signup-role')?.value || 'ROLE_OWNER';
   const password = document.getElementById('signup-password').value;
   const confirmPassword = document.getElementById('signup-confirm-password').value;
 
@@ -132,10 +163,12 @@ async function handleSignUp(e) {
     return;
   }
 
-  // Derive valid 3-50 char username from email prefix
-  let username = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
-  if (username.length < 3) {
-    username = (username + fullName.toLowerCase().replace(/[^a-z0-9]/g, '') + 'user').substring(0, 12);
+  // Derive valid 3-50 char username if not supplied
+  if (!username) {
+    username = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (username.length < 3) {
+      username = (username + fullName.toLowerCase().replace(/[^a-z0-9]/g, '') + 'user').substring(0, 12);
+    }
   }
 
   try {
@@ -147,7 +180,8 @@ async function handleSignUp(e) {
         username,
         email,
         password,
-        fullName
+        fullName,
+        role
       })
     });
 

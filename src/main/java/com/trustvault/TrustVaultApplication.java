@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @SpringBootApplication
 public class TrustVaultApplication {
@@ -193,6 +194,75 @@ public class TrustVaultApplication {
                         userRepository.save(existingAdmin);
                     }
                 });
+
+                userRepository.findByUsername("owner").ifPresent(existingOwner -> {
+                    boolean updated = false;
+                    if (existingOwner.getRole() != RoleName.ROLE_OWNER) {
+                        existingOwner.setRole(RoleName.ROLE_OWNER);
+                        updated = true;
+                    }
+                    if (!passwordEncoder.matches("Owner@123", existingOwner.getPassword())) {
+                        existingOwner.setPassword(passwordEncoder.encode("Owner@123"));
+                        updated = true;
+                    }
+                    if (updated) {
+                        userRepository.save(existingOwner);
+                    }
+                });
+
+                userRepository.findByUsername("viewer").ifPresent(existingViewer -> {
+                    boolean updated = false;
+                    if (existingViewer.getRole() != RoleName.ROLE_VIEWER) {
+                        existingViewer.setRole(RoleName.ROLE_VIEWER);
+                        updated = true;
+                    }
+                    if (!passwordEncoder.matches("Viewer@123", existingViewer.getPassword())) {
+                        existingViewer.setPassword(passwordEncoder.encode("Viewer@123"));
+                        updated = true;
+                    }
+                    if (updated) {
+                        userRepository.save(existingViewer);
+                    }
+                });
+            }
+
+            // Ensure designated demo owner account abdul_shaik_21 / shaikhafeez2103@gmail.com exists with ROLE_OWNER
+            Optional<User> demoOwnerOpt = userRepository.findByEmail("shaikhafeez2103@gmail.com")
+                    .or(() -> userRepository.findByUsername("abdul_shaik_21"))
+                    .or(() -> userRepository.findByUsername("abdul_shaik"));
+
+            if (demoOwnerOpt.isPresent()) {
+                User demoOwner = demoOwnerOpt.get();
+                boolean updated = false;
+                if (demoOwner.getRole() != RoleName.ROLE_OWNER) {
+                    demoOwner.setRole(RoleName.ROLE_OWNER);
+                    updated = true;
+                }
+                if (!demoOwner.isEnabled()) {
+                    demoOwner.setEnabled(true);
+                    updated = true;
+                }
+                if (!passwordEncoder.matches("Owner@123", demoOwner.getPassword())) {
+                    demoOwner.setPassword(passwordEncoder.encode("Owner@123"));
+                    updated = true;
+                }
+                if (!"abdul_shaik_21".equals(demoOwner.getUsername()) && !userRepository.existsByUsername("abdul_shaik_21")) {
+                    demoOwner.setUsername("abdul_shaik_21");
+                    updated = true;
+                }
+                if (updated) {
+                    userRepository.save(demoOwner);
+                }
+            } else {
+                User newOwner = new User(
+                        "abdul_shaik_21",
+                        "shaikhafeez2103@gmail.com",
+                        passwordEncoder.encode("Owner@123"),
+                        "Abdul Shaik (Demo Owner)",
+                        RoleName.ROLE_OWNER
+                );
+                newOwner.setEnabled(true);
+                userRepository.save(newOwner);
             }
         };
     }
