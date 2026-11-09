@@ -9,18 +9,6 @@ let token =
   sessionStorage.getItem('trustvault_token') ||
   null;
 
-// Sanitize any stale localStorage user profile for the demo admin account
-if (currentUser && (currentUser.username === 'admin' || /abdul|haffiz|administrator/i.test(currentUser.fullName || ''))) {
-  currentUser.fullName = 'Demo Admin';
-  currentUser.initials = 'DA';
-  currentUser.role = currentUser.role || 'ROLE_ADMIN';
-  if (localStorage.getItem('trustvault_user')) {
-    localStorage.setItem('trustvault_user', JSON.stringify(currentUser));
-  } else if (sessionStorage.getItem('trustvault_user')) {
-    sessionStorage.setItem('trustvault_user', JSON.stringify(currentUser));
-  }
-}
-
 let currentView = 'dashboard';
 let documentsList = [];
 
@@ -63,6 +51,9 @@ function clearClientSession() {
   sessionStorage.removeItem('trustvault_token');
   sessionStorage.removeItem('trustvault_user');
   sessionStorage.setItem('trustvault_logged_out', 'true');
+  try {
+    document.cookie = 'trustvault_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+  } catch (e) {}
 }
 
 async function handleLogout() {
@@ -96,17 +87,14 @@ function isAdminRole() {
 
 function updateUserInterface() {
   if (!currentUser) return;
-  if (currentUser.username === 'admin') {
-    currentUser.fullName = 'Demo Admin';
-    currentUser.initials = 'DA';
-  }
 
   const avatarEl = document.getElementById('header-avatar');
   const nameEl = document.getElementById('header-username');
   const roleEl = document.getElementById('header-role');
   const welcomeEl = document.getElementById('welcome-user-name');
 
-  if (avatarEl) avatarEl.innerText = currentUser.initials || currentUser.fullName?.charAt(0) || 'U';
+  const initials = currentUser.initials || (currentUser.fullName ? currentUser.fullName.charAt(0) : currentUser.username.charAt(0)).toUpperCase();
+  if (avatarEl) avatarEl.innerText = initials;
   if (nameEl) nameEl.innerText = currentUser.fullName || currentUser.username;
   if (roleEl) roleEl.innerText = currentUser.role || 'User';
   if (welcomeEl) welcomeEl.innerText = currentUser.fullName || currentUser.username;
@@ -120,62 +108,6 @@ function updateUserInterface() {
   const uploadBtn = document.getElementById('uploadBtn');
   if (uploadBtn) {
     uploadBtn.style.display = isViewerRole() ? 'none' : 'inline-flex';
-  }
-
-  // Highlight active role switcher button
-  const roleName = String(currentUser.role || '').toUpperCase();
-  const uname = String(currentUser.username || '').toLowerCase();
-  ['admin', 'owner', 'viewer'].forEach(r => {
-    const btn = document.getElementById(`switch-${r}-btn`);
-    if (btn) {
-      const active = (uname === r) || (r === 'admin' && roleName.includes('ADMIN')) || (r === 'owner' && roleName.includes('OWNER')) || (r === 'viewer' && roleName.includes('VIEWER'));
-      btn.style.background = active ? '#2563eb' : 'transparent';
-      btn.style.color = active ? '#ffffff' : '#475569';
-      btn.style.border = active ? '1px solid #1d4ed8' : '1px solid #cbd5e1';
-      btn.style.fontWeight = active ? '700' : '500';
-    }
-  });
-}
-
-// 1-Click Demo Role Switcher
-async function switchDemoRole(targetRole) {
-  const credentials = {
-    admin: { username: 'admin', password: 'Admin@2026Test' },
-    owner: { username: 'owner', password: 'Owner@123' },
-    viewer: { username: 'viewer', password: 'Viewer@123' }
-  };
-  const creds = credentials[targetRole];
-  if (!creds) return;
-
-  try {
-    showToast(`Authenticating as demo ${targetRole.toUpperCase()}...`, 'info');
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(creds)
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Authentication failed');
-    }
-    const data = await res.json();
-    token = data.token;
-    currentUser = {
-      id: data.id,
-      username: data.username,
-      fullName: data.username === 'admin' ? 'Demo Admin' : data.fullName,
-      email: data.email,
-      role: data.role,
-      initials: data.username === 'admin' ? 'DA' : undefined
-    };
-    localStorage.setItem('trustvault_token', token);
-    localStorage.setItem('trustvault_user', JSON.stringify(currentUser));
-    sessionStorage.removeItem('trustvault_logged_out');
-    updateUserInterface();
-    showToast(`Active identity switched to ${currentUser.fullName} (${currentUser.role})`, 'success');
-    navigateTo(currentView || 'dashboard');
-  } catch (e) {
-    showToast('Failed to switch demo role: ' + e.message, 'error');
   }
 }
 
@@ -1224,26 +1156,30 @@ function escapeHtml(str) {
 // Initialize on Load
 document.addEventListener('DOMContentLoaded', async () => {
   if (!token) {
+    clearClientSession();
     window.location.replace('login.html');
     return;
   }
   const verifiedProfile = await api('/api/auth/me').catch(() => null);
   if (!verifiedProfile) {
-    return; // api() handles 401 redirect to login.html
+    clearClientSession();
+    window.location.replace('login.html');
+    return;
   }
   currentUser = {
     id: verifiedProfile.id,
     username: verifiedProfile.username,
-    fullName: verifiedProfile.username === 'admin' ? 'Demo Admin' : verifiedProfile.fullName,
+    fullName: verifiedProfile.fullName || verifiedProfile.username,
     email: verifiedProfile.email,
     role: verifiedProfile.role,
-    initials: verifiedProfile.username === 'admin' ? 'DA' : undefined
+    initials: (verifiedProfile.fullName ? verifiedProfile.fullName.charAt(0) : verifiedProfile.username.charAt(0)).toUpperCase()
   };
   if (localStorage.getItem('trustvault_token')) {
     localStorage.setItem('trustvault_user', JSON.stringify(currentUser));
   } else {
     sessionStorage.setItem('trustvault_user', JSON.stringify(currentUser));
   }
+  document.body.classList.remove('auth-pending');
   updateUserInterface();
   loadDashboardData();
 });

@@ -51,11 +51,21 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) -> {
+                    String accept = request.getHeader("Accept");
+                    if (accept != null && accept.contains("text/html")) {
+                        response.sendRedirect("/login.html");
+                        return;
+                    }
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                     response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Authentication required or session expired\",\"path\":\"" + request.getRequestURI() + "\"}");
                 })
                 .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    String accept = request.getHeader("Accept");
+                    if (accept != null && accept.contains("text/html")) {
+                        response.sendRedirect("/login.html");
+                        return;
+                    }
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                     response.getWriter().write("{\"status\":403,\"error\":\"Forbidden\",\"message\":\"You do not have permission to access this resource\",\"path\":\"" + request.getRequestURI() + "\"}");
@@ -67,13 +77,13 @@ public class SecurityConfig {
                     "/",
                     "/index.html",
                     "/login.html",
-                    "/dashboard.html",
                     "/css/**",
                     "/js/**",
                     "/assets/**",
                     "/favicon.ico",
                     "/actuator/**"
                 ).permitAll()
+                .requestMatchers("/dashboard.html", "/dashboard").authenticated()
 
                 // Public Auth & Google OAuth 2.0 Endpoints (except /api/auth/me which requires authentication)
                 .requestMatchers(

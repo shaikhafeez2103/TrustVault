@@ -45,6 +45,11 @@ function startGoogleSignIn() {
 
 function persistAuthSession(token, userProfile, rememberMe) {
   sessionStorage.removeItem('trustvault_logged_out');
+  const maxAge = rememberMe ? 86400 * 7 : 86400;
+  try {
+    document.cookie = `trustvault_token=${encodeURIComponent(token)}; Path=/; SameSite=Lax; max-age=${maxAge}`;
+  } catch (e) {}
+
   if (rememberMe) {
     localStorage.setItem('trustvault_token', token);
     localStorage.setItem('trustvault_user', JSON.stringify(userProfile));
@@ -84,42 +89,23 @@ async function handleSignIn(e) {
     }
 
     const data = await response.json();
-    const displayFullName = data.username === 'admin' ? 'Demo Admin' : data.fullName;
+    const displayFullName = data.fullName || data.username;
     const userProfile = {
       id: data.id,
       username: data.username,
       fullName: displayFullName,
       email: data.email,
       role: data.role,
-      initials: data.username === 'admin' ? 'DA' : undefined
+      initials: (data.fullName ? data.fullName.charAt(0) : data.username.charAt(0)).toUpperCase()
     };
     persistAuthSession(data.token, userProfile, rememberMe);
 
     showToast(`Welcome back, ${displayFullName}! Redirecting to dashboard...`, 'success');
     setTimeout(() => {
-      window.location.href = 'index.html';
-    }, 500);
+      window.location.href = 'dashboard.html';
+    }, 400);
   } catch (err) {
     showToast('Network error connecting to TrustVault server.', 'error');
-  }
-}
-
-function quickLoginDemo(role) {
-  const credentials = {
-    admin: { user: 'admin', pass: 'Admin@2026Test' },
-    owner: { user: 'owner', pass: 'Owner@123' },
-    viewer: { user: 'viewer', pass: 'Viewer@123' }
-  };
-  const cred = credentials[role];
-  if (cred) {
-    const userField = document.getElementById('signin-email');
-    const passField = document.getElementById('signin-password');
-    if (userField && passField) {
-      userField.value = cred.user;
-      passField.value = cred.pass;
-      const form = document.getElementById('signin-form');
-      if (form) form.dispatchEvent(new Event('submit', { cancelable: true }));
-    }
   }
 }
 
@@ -203,8 +189,8 @@ async function handleSignUp(e) {
 
     showToast('Account created successfully! Launching dashboard...', 'success');
     setTimeout(() => {
-      window.location.href = 'index.html';
-    }, 500);
+      window.location.href = 'dashboard.html';
+    }, 400);
   } catch (err) {
     showToast('Failed to connect to TrustVault server.', 'error');
   }
@@ -316,7 +302,7 @@ async function handleOAuthCallbackOnLoad() {
       }, true);
       showToast(`Signed in with Google as ${data.fullName}! Redirecting...`, 'success');
       setTimeout(() => {
-        window.location.href = 'index.html';
+        window.location.href = 'dashboard.html';
       }, 450);
     } catch (e) {
       showToast('Network error completing Google authentication.', 'error');
@@ -324,4 +310,35 @@ async function handleOAuthCallbackOnLoad() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', handleOAuthCallbackOnLoad);
+document.addEventListener('DOMContentLoaded', async () => {
+  handleOAuthCallbackOnLoad();
+
+  if (window.location.hash === '#signup' || window.location.search.includes('mode=signup')) {
+    toggleAuthContainers('signup');
+  }
+
+  // If user just logged out, remain on login page
+  if (sessionStorage.getItem('trustvault_logged_out')) {
+    sessionStorage.removeItem('trustvault_logged_out');
+    return;
+  }
+
+  // Check if an active authenticated session already exists
+  const existingToken = localStorage.getItem('trustvault_token') || sessionStorage.getItem('trustvault_token');
+  if (existingToken) {
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${existingToken}` }
+      });
+      if (res.ok) {
+        window.location.replace('dashboard.html');
+        return;
+      }
+    } catch (e) {}
+    localStorage.removeItem('trustvault_token');
+    localStorage.removeItem('trustvault_user');
+    sessionStorage.removeItem('trustvault_token');
+    sessionStorage.removeItem('trustvault_user');
+    document.cookie = 'trustvault_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;';
+  }
+});
